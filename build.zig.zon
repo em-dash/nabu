@@ -1,0 +1,26 @@
+.{
+    .name = "nabu",
+    // This is a [Semantic Version](https://semver.org/).
+    // In a future version of Zig it will be used for package deduplication.
+    .version = "0.0.0",
+
+    // Selected for ziglyph
+    .minimum_zig_version = "0.12.0-dev.2036+fc79b22a9",
+
+    // This field is optional.
+    // Each dependency must either provide a `url` and `hash`, or a `path`.
+    // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
+    // Once all dependencies are fetched, `zig build` no longer requires
+    // internet connectivity.
+    .dependencies = .{
+        .pretty = .{
+            .url = "https://github.com/timfayz/pretty/archive/refs/tags/v0.9.3.tar.gz",
+            .hash = "1220b78396db74b148d5da7d8be46ce7cf9109fc5c2027303c577eee009b8088bce9",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
