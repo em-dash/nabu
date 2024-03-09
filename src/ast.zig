@@ -1,5 +1,5 @@
 const std = @import("std");
-const tokenize = @import("tokenize.zig");
+const tokenize = @import("tokenization.zig");
 const testing = std.testing;
 const mem = std.mem;
 const Allocator = mem.Allocator;
@@ -254,11 +254,11 @@ const Statement = union(enum) {
 const Container = struct {
     statements: []*Statement,
 
-    fn parse(allocator: Allocator, tokens: []Token) ParseError!*Container {
-        var list = ArrayList(*Statement).init(allocator);
-        _ = list; // autofix
-        _ = tokens; // autofix
-    }
+    // fn parse(allocator: Allocator, tokens: []Token) ParseError!*Container {
+    //     var list = ArrayList(*Statement).init(allocator);
+    //     _ = list; // autofix
+    //     _ = tokens; // autofix
+    // }
 };
 
 fn expectAst(T: type, expected: []const u8, source: []const u8) !void {
@@ -281,24 +281,24 @@ test "const declaration" {
     const expected =
         \\*ast.Statement
         \\  .declaration: ast.Declaration
-        \\    .const_var: *tokenize.Token
-        \\      .tag: tokenize.Token.Tag
+        \\    .const_var: *tokenization.Token
+        \\      .tag: tokenization.Token.Tag
         \\        .keyword_const
         \\      .start: usize => 0
         \\      .end: usize => 5
-        \\    .identifier: *tokenize.Token
-        \\      .tag: tokenize.Token.Tag
+        \\    .identifier: *tokenization.Token
+        \\      .tag: tokenization.Token.Tag
         \\        .identifier
         \\      .start: usize => 6
         \\      .end: usize => 10
-        \\    .type: ?*tokenize.Token
-        \\      .tag: tokenize.Token.Tag
+        \\    .type: ?*tokenization.Token
+        \\      .tag: tokenization.Token.Tag
         \\        .identifier
         \\      .start: usize => 12
         \\      .end: usize => 18
         \\    .rhs: *ast.Expression
-        \\      .value: *tokenize.Token
-        \\        .tag: tokenize.Token.Tag
+        \\      .value: *tokenization.Token
+        \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 21
         \\        .end: usize => 24
@@ -312,8 +312,8 @@ test "decimal integer literal" {
     ;
     const expected =
         \\*ast.Expression
-        \\  .value: *tokenize.Token
-        \\    .tag: tokenize.Token.Tag
+        \\  .value: *tokenization.Token
+        \\    .tag: tokenization.Token.Tag
         \\      .integer_literal
         \\    .start: usize => 0
         \\    .end: usize => 6
@@ -329,19 +329,19 @@ test "1 + 1" {
         \\*ast.Expression
         \\  .binary_operation: ast.BinaryOperation
         \\    .lhs: *ast.Expression
-        \\      .value: *tokenize.Token
-        \\        .tag: tokenize.Token.Tag
+        \\      .value: *tokenization.Token
+        \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 0
         \\        .end: usize => 1
-        \\    .operator: *tokenize.Token
-        \\      .tag: tokenize.Token.Tag
+        \\    .operator: *tokenization.Token
+        \\      .tag: tokenization.Token.Tag
         \\        .plus
         \\      .start: usize => 2
         \\      .end: usize => 3
         \\    .rhs: *ast.Expression
-        \\      .value: *tokenize.Token
-        \\        .tag: tokenize.Token.Tag
+        \\      .value: *tokenization.Token
+        \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 4
         \\        .end: usize => 5
@@ -356,34 +356,34 @@ test "function call with various arguments" {
     const expected =
         \\*ast.Expression
         \\  .function_call: ast.FunctionCall
-        \\    .identifier: *tokenize.Token
-        \\      .tag: tokenize.Token.Tag
+        \\    .identifier: *tokenization.Token
+        \\      .tag: tokenization.Token.Tag
         \\        .identifier
         \\      .start: usize => 0
         \\      .end: usize => 8
         \\    .arguments: []*ast.Expression
         \\      [0]: *ast.Expression
         \\        .function_call: ast.FunctionCall
-        \\          .identifier: *tokenize.Token
-        \\            .tag: tokenize.Token.Tag
+        \\          .identifier: *tokenization.Token
+        \\            .tag: tokenization.Token.Tag
         \\              .identifier
         \\            .start: usize => 9
         \\            .end: usize => 25
         \\          .arguments: []*ast.Expression
-        \\            .value: *tokenize.Token
-        \\              .tag: tokenize.Token.Tag
+        \\            .value: *tokenization.Token
+        \\              .tag: tokenization.Token.Tag
         \\                .integer_literal
         \\              .start: usize => 26
         \\              .end: usize => 32
         \\      [1]: *ast.Expression
-        \\        .value: *tokenize.Token
-        \\          .tag: tokenize.Token.Tag
+        \\        .value: *tokenization.Token
+        \\          .tag: tokenization.Token.Tag
         \\            .string_literal
         \\          .start: usize => 35
         \\          .end: usize => 40
         \\      [2]: *ast.Expression
-        \\        .value: *tokenize.Token
-        \\          .tag: tokenize.Token.Tag
+        \\        .value: *tokenization.Token
+        \\          .tag: tokenization.Token.Tag
         \\            .integer_literal
         \\          .start: usize => 42
         \\          .end: usize => 46
@@ -398,14 +398,14 @@ test "unary minus" {
     const expected =
         \\*ast.Expression
         \\  .unary_operation: ast.UnaryOperation
-        \\    .operator: *tokenize.Token
-        \\      .tag: tokenize.Token.Tag
+        \\    .operator: *tokenization.Token
+        \\      .tag: tokenization.Token.Tag
         \\        .minus
         \\      .start: usize => 0
         \\      .end: usize => 1
         \\    .operand: *ast.Expression
-        \\      .value: *tokenize.Token
-        \\        .tag: tokenize.Token.Tag
+        \\      .value: *tokenization.Token
+        \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 1
         \\        .end: usize => 5

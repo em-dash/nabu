@@ -7,7 +7,7 @@ pub fn main() !void {
 
 test {
     _ = @import("ast.zig");
-    _ = @import("tokenize.zig");
+    _ = @import("tokenization.zig");
     _ = @import("types.zig");
     _ = @import("render.zig");
 }

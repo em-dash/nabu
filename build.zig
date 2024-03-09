@@ -32,6 +32,8 @@ pub fn build(b: *std.Build) void {
         b.fmt("{s}", .{urn_text}),
     });
 
+    const llvm = b.host.result.cpu.arch == .x86_64;
+
     const urn_step = b.step("urn", "You made a typo");
     urn_step.dependOn(&urn.step);
 
@@ -40,6 +42,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
+        .use_llvm = llvm,
+        .use_lld = llvm,
     });
 
     const pretty = b.dependency("pretty", .{ .target = target, .optimize = optimize });
@@ -77,6 +81,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
+        .use_llvm = llvm,
+        .use_lld = llvm,
     });
     exe_unit_tests.root_module.addImport("pretty", pretty.module("pretty"));
 
