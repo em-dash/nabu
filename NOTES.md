@@ -4,7 +4,7 @@
 ###
 ```
 // comment
-// just copy comment syntax from zig
+// just copy comment syntax from zig and co.
 ```
 ### assignment and declaration
 ```
@@ -13,7 +13,37 @@ const b = 2; // constant
 
 const name: Explicit_Type = foo();
 
-const f = fn(param: Type) Return_Type {}; // zig 1717 syntax lol
+// const f = fn(param: Type) Return_Type {}; // zig 1717 syntax?
+// nah
+
+fn f(param: Type) Return_Type {
+    // do stuff
+    // note parameters are immutable so we can do the zig thing and selectively pass by reference
+    // or value
+}
+
+/// Struct decl
+struct Some_Struct {
+    field: Field_Type,
+    field_with_default: Another_Type = default_value(),
+
+    const scoped_value = "blep";
+    var mutable_scoped_value = 5;
+
+    fn scoped_function(param: Type) Return_Type {
+        // do stuff
+    }
+
+    /// Assuming `foo` is an instance of `Some_Struct`, this can be called like 
+    /// `foo.function_with_self()`.
+    fn function_with_self(self: Some_Struct) Some_Struct {
+        // do stuff
+    }
+}
+
+enum Name {}
+
+interface Name {}
 ```
 ### math
 ```
@@ -21,9 +51,6 @@ const a = 1 + 1;
 const b = 1 - 1;
 const c = 1 / 1;
 const d = 1 * 1;
-```
-### types
-```
 ```
 ### slices and ranges
 ```

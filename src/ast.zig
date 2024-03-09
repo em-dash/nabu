@@ -85,7 +85,7 @@ pub const FunctionCall = struct {
     arguments: []*Expression,
 };
 
-pub const FunctionDescription = struct {
+pub const FunctionDefinition = struct {
     arguments: []TypedIdentifier,
     block: *Container,
 };
@@ -102,7 +102,7 @@ pub const Expression = union(enum) {
     binary_operation: BinaryOperation,
     unary_operation: UnaryOperation,
     function_call: FunctionCall,
-    function_description: FunctionDescription,
+    function_definition: FunctionDefinition,
 
     fn parse(allocator: Allocator, tokens: []Token) ParseError!*Expression {
         assert(tokens.len > 0);
@@ -139,7 +139,7 @@ pub const Expression = union(enum) {
             }
         }
 
-        // Function description
+        // Function definition
         {
             const maybe_index = try scanTokensInScope(
                 &[_]Token.Tag{.keyword_fn},
@@ -158,16 +158,16 @@ pub const Expression = union(enum) {
                     var id: TypedIdentifier = undefined;
                     // identifier
                     if (tokens[args_index].tag != .identifier)
-                        std.debug.panic("invalid function description", .{});
+                        std.debug.panic("invalid function definition", .{});
                     id.identifier = &tokens[args_index];
                     args_index += 1;
                     // colon
                     if (tokens[args_index].tag != .colon)
-                        std.debug.panic("invalid function description", .{});
+                        std.debug.panic("invalid function definition", .{});
                     args_index += 1;
                     // type
                     if (tokens[args_index].tag != .identifier)
-                        std.debug.panic("invalid function description", .{});
+                        std.debug.panic("invalid function definition", .{});
                     id.type = &tokens[args_index];
                     // loop over dots for namespaced stuff
                     args_index += 1;
@@ -176,7 +176,7 @@ pub const Expression = union(enum) {
                     if (tokens[args_index].tag != .r_paren) break;
                 }
 
-                result.* = .{ .function_description = .{
+                result.* = .{ .function_definition = .{
                     .arguments = try arguments.toOwnedSlice(),
                     .block = try Container.parse(allocator, tokens[index + 1 .. tokens.len - 1]),
                 } };
@@ -304,7 +304,12 @@ const Container = struct {
         for (tokens) |t| {
             _ = t; // autofix
             try list.append(undefined);
+            while (true) {
+                //
+            }
         }
+
+        unreachable;
     }
 };
 
@@ -321,7 +326,7 @@ fn expectAst(T: type, expected: []const u8, source: []const u8) !void {
     try std.testing.expectEqualStrings(expected, actual);
 }
 
-test "function description" {
+test "function definition" {
     const source =
         \\fn(param: Type) Return_Type {}
     ;
