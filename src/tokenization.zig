@@ -593,6 +593,24 @@ test "assignment" {
     try expectTokens(&expected, source);
 }
 
+test "unicode identifiers" {
+    const source =
+        \\啊 = 貓.吃(魚);
+    ;
+    const expected = [_]Token{
+        .{ .tag = .identifier, .start = 0, .end = 3 },
+        .{ .tag = .single_equals, .start = 4, .end = 5 },
+        .{ .tag = .identifier, .start = 6, .end = 9 },
+        .{ .tag = .dot, .start = 9, .end = 10 },
+        .{ .tag = .identifier, .start = 10, .end = 13 },
+        .{ .tag = .l_paren, .start = 13, .end = 14 },
+        .{ .tag = .identifier, .start = 14, .end = 17 },
+        .{ .tag = .r_paren, .start = 17, .end = 18 },
+        .{ .tag = .semicolon, .start = 18, .end = 19 },
+    };
+    try expectTokens(&expected, source);
+}
+
 test "dot operator assignment" {
     const source =
         \\cats.cuteness = 9001;
