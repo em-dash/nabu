@@ -62,6 +62,14 @@ const d = 1 * 1;
 repl> exit
 $ █
 ```
+## variables
+### reference and value semantics
+base this on what go does; if you do `var a = get_value();`:
+- `a` goes on the stack by default
+- if `a` is a big boi, it goes on the heap
+- if `a` _escapes_ (i.e. pointers to `a` would end up dangling when the stack frame containing `a` is popped), then it goes on the heap
+you can get a reference to a thing by saying `var b = &a`
+- either way, you can always treat `a` like a stack value in the relevant scope, and you can use `&a` to get a reference to it
 # style guide
 - lines longer wider than 100 characters will cause a compile error
 - snake case `function_call()`, `variable_name`, `enum_member`, `struct_member`
