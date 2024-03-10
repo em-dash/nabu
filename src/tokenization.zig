@@ -47,18 +47,14 @@ pub const Tokenizer = struct {
     const keywords = k: {
         // This is a little silly but why not
         const Tuple = std.meta.Tuple(&[_]type{ []const u8, Token.Tag });
-        var index = 0;
-        // On account of this being silly, it seems like it's hard to make a growable array like I
-        // want to.  This works.
-        var list: [100]Tuple = undefined;
+        var list: []const Tuple = &[_]Tuple{};
         for (std.enums.values(Token.Tag)) |v| {
             const t = @tagName(v);
             if (std.mem.startsWith(u8, t, "keyword_")) {
-                list[index] = .{ t[8..], v };
-                index += 1;
+                list = list ++ &[_]Tuple{.{ t[8..], v }};
             }
         }
-        break :k std.ComptimeStringMap(Token.Tag, list[0..index]);
+        break :k std.ComptimeStringMap(Token.Tag, list);
     };
 
     const State = enum {
