@@ -65,8 +65,8 @@ pub const Tokenizer = struct {
         start,
         forward_slash,
         comment,
-        /// Characters used for identifiers are based on the scheme standard, mainly because I
-        /// incidentally already had the unicode ranges for that.
+        /// Characters used for identifiers are based on the scheme standard right now, mainly
+        ///  because I incidentally already had the unicode ranges for that.
         word,
         string_literal,
         integer_literal,

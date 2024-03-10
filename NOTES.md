@@ -13,8 +13,8 @@ const b = 2; // constant
 
 const name: Explicit_Type = foo();
 
-// const f = fn(param: Type) Return_Type {}; // zig 1717 syntax?
-// nah
+// anonymous containers
+const a: Some_Struct_Type = ~{ .field = gimme_a_value() };
 
 fn f(param: Type) Return_Type {
     // do stuff
@@ -41,9 +41,22 @@ struct Some_Struct {
     }
 }
 
-enum Name {}
+enum Name {
+    cat,
+    red_panda,
+    capybara,
+}
+// scoped fns callable with dot syntax like structs
 
-interface Name {}
+interface Name {
+    fn bork(param: Type) Return;
+}
+// interface polymorphism pls
+
+// generics
+generic List<T> {}
+
+var l: List<Doggo> = ~{};
 ```
 ### math
 ```
