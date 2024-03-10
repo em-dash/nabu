@@ -6,7 +6,6 @@ const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 const ArrayList = std.ArrayList;
 const log = std.log;
-const pretty = @import("pretty");
 
 const Tokenizer = tokenize.Tokenizer;
 const Token = tokenize.Token;
@@ -63,9 +62,28 @@ fn scanTokensInScope(comptime needle: []const Token.Tag, haystack: []const Token
 //     std.debug.panic("mismatched parentheses", .{});
 // }
 
+const ScopedIdentifier = struct {
+    identifiers: []*Token,
+
+    fn parse(allocator: Allocator, tokens: []Token) ParseError!ScopedIdentifier {
+        var list = ArrayList(*Token).init(allocator);
+        var index: usize = 0;
+        while (true) {
+            if (tokens[index].tag != .identifier) std.debug.panic("invalid token", .{});
+            try list.append(&tokens[index]);
+            index += 1;
+            if (index >= tokens.len) break;
+            if (tokens[index].tag != .dot) std.debug.panic("invalid token", .{});
+            index += 1;
+            if (index >= tokens.len) std.debug.panic("invalid token", .{});
+        }
+        return .{ .identifiers = try list.toOwnedSlice() };
+    }
+};
+
 const TypedIdentifier = struct {
     identifier: *Token,
-    type: *Token,
+    type: ScopedIdentifier,
 };
 
 pub const BinaryOperation = struct {
@@ -81,13 +99,8 @@ pub const UnaryOperation = struct {
 };
 
 pub const FunctionCall = struct {
-    identifier: *Token,
+    identifier: ScopedIdentifier,
     arguments: []*Expression,
-};
-
-pub const FunctionDefinition = struct {
-    arguments: []TypedIdentifier,
-    block: *Container,
 };
 
 pub const Declaration = struct {
@@ -98,25 +111,41 @@ pub const Declaration = struct {
 };
 
 pub const Expression = union(enum) {
-    value: *Token,
+    literal: *Token,
+    identifier: ScopedIdentifier,
     binary_operation: BinaryOperation,
     unary_operation: UnaryOperation,
     function_call: FunctionCall,
-    function_definition: FunctionDefinition,
+    // function_definition: FunctionDefinition,
 
     fn parse(allocator: Allocator, tokens: []Token) ParseError!*Expression {
         assert(tokens.len > 0);
         // The order in which we check for expression types is important.
-
-        // Single-token expressions
+        const result = try allocator.create(Expression);
         if (tokens.len == 1) switch (tokens[0].tag) {
-            .string_literal, .integer_literal, .identifier => {
-                const result = try allocator.create(Expression);
-                result.* = .{ .value = &tokens[0] };
+            .string_literal, .integer_literal => {
+                result.* = .{ .literal = &tokens[0] };
+                return result;
+            },
+            .identifier => {
+                // TODO special case this because we know it's already length 1
+                result.* = .{ .identifier = try ScopedIdentifier.parse(allocator, tokens) };
                 return result;
             },
             else => unreachable,
         };
+
+        // (Maybe scoped) identifiers
+        for (tokens) |t| {
+            switch (t.tag) {
+                .identifier, .dot => {},
+                else => break,
+            }
+        } else {
+            result.* = .{ .identifier = try ScopedIdentifier.parse(allocator, tokens) };
+            return result;
+        }
+
         // Precedence parentheses
         if (tokens[0].tag == .l_paren and tokens[tokens.len - 1].tag == .r_paren) {
             return Expression.parse(allocator, tokens[1 .. tokens.len - 2]);
@@ -126,7 +155,6 @@ pub const Expression = union(enum) {
         {
             switch (tokens[0].tag) {
                 .minus => {
-                    const result = try allocator.create(Expression);
                     result.* = .{
                         .unary_operation = .{
                             .operator = &tokens[0],
@@ -139,50 +167,6 @@ pub const Expression = union(enum) {
             }
         }
 
-        // Function definition
-        {
-            const maybe_index = try scanTokensInScope(
-                &[_]Token.Tag{.keyword_fn},
-                tokens,
-            );
-            if (maybe_index) |index| {
-                const result = try allocator.create(Expression);
-                // TODO qualifiers?
-                assert(tokens[index].tag == .keyword_fn);
-                assert(tokens[index + 1].tag == .l_paren);
-                var arguments = ArrayList(TypedIdentifier).init(allocator);
-                var args_index: usize = 2;
-                while (true) {
-                    // maybe r_paren
-                    if (tokens[args_index].tag == .r_paren) break;
-                    var id: TypedIdentifier = undefined;
-                    // identifier
-                    if (tokens[args_index].tag != .identifier)
-                        std.debug.panic("invalid function definition", .{});
-                    id.identifier = &tokens[args_index];
-                    args_index += 1;
-                    // colon
-                    if (tokens[args_index].tag != .colon)
-                        std.debug.panic("invalid function definition", .{});
-                    args_index += 1;
-                    // type
-                    if (tokens[args_index].tag != .identifier)
-                        std.debug.panic("invalid function definition", .{});
-                    id.type = &tokens[args_index];
-                    // loop over dots for namespaced stuff
-                    args_index += 1;
-                    try arguments.append(id);
-                    // comma or r_paren
-                    if (tokens[args_index].tag != .r_paren) break;
-                }
-
-                result.* = .{ .function_definition = .{
-                    .arguments = try arguments.toOwnedSlice(),
-                    .block = try Container.parse(allocator, tokens[index + 1 .. tokens.len - 1]),
-                } };
-            }
-        }
-
         // Binary operators
         {
             const maybe_index = try scanTokensInScope(
@@ -190,7 +174,6 @@ pub const Expression = union(enum) {
                 tokens,
             );
             if (maybe_index) |index| {
-                const result = try allocator.create(Expression);
                 result.* = .{ .binary_operation = .{
                     .lhs = try Expression.parse(allocator, tokens[0..index]),
                     .rhs = try Expression.parse(allocator, tokens[index + 1 ..]),
@@ -202,41 +185,55 @@ pub const Expression = union(enum) {
 
         // Function call
         {
-            if (tokens[0].tag == .identifier and
-                tokens[1].tag == .l_paren and
-                tokens[tokens.len - 1].tag == .r_paren)
-            {
-                const result = try allocator.create(Expression);
-                result.* = .{
-                    .function_call = .{ .identifier = &tokens[0], .arguments = undefined },
-                };
-                var list = ArrayList(*Expression).init(allocator);
-                var anchor: usize = 2;
-                var paren_depth: usize = 1;
-                for (tokens[2..], 2..) |t, i| {
-                    switch (t.tag) {
-                        .comma => {
-                            if (paren_depth == 1) {
-                                // if (i == anchor + 1) std.debug.panic("expected expression", .{});
-                                try list.append(try Expression.parse(allocator, tokens[anchor..i]));
-                                anchor = i + 1;
-                            }
-                        },
-                        .r_paren => {
-                            if (paren_depth == 1) {
-                                try list.append(try Expression.parse(allocator, tokens[anchor..i]));
-                                result.function_call.arguments = try list.toOwnedSlice();
-                                return result;
-                            } else paren_depth -= 1;
-                        },
-                        .l_paren => {
-                            paren_depth += 1;
-                        },
-                        else => {},
+            const has_parens = for (tokens) |t| {
+                if (t.tag == .l_paren) break true;
+            } else false;
+            if (has_parens) {
+                var index: usize = 0;
+                while (true) : (index += 1) {
+                    switch (tokens[index].tag) {
+                        .identifier, .dot => {},
+                        else => break,
                     }
+                }
+                if (tokens[index].tag == .l_paren and tokens[tokens.len - 1].tag == .r_paren) {
+                    result.* = .{
+                        .function_call = .{
+                            .identifier = try ScopedIdentifier.parse(allocator, tokens[0..index]),
+                            .arguments = undefined,
+                        },
+                    };
+                    var list = ArrayList(*Expression).init(allocator);
+                    var anchor: usize = 2;
+                    var paren_depth: usize = 1;
+                    for (tokens[2..], 2..) |t, i| {
+                        switch (t.tag) {
+                            .comma => {
+                                if (paren_depth == 1) {
+                                    // if (i == anchor + 1) std.debug.panic("expected expression", .{});
+                                    try list.append(try Expression.parse(allocator, tokens[anchor..i]));
+                                    anchor = i + 1;
+                                }
+                            },
+                            .r_paren => {
+                                if (paren_depth == 1) {
+                                    try list.append(try Expression.parse(allocator, tokens[anchor..i]));
+                                    result.function_call.arguments = try list.toOwnedSlice();
+                                    return result;
+                                } else paren_depth -= 1;
+                            },
+                            .l_paren => {
+                                paren_depth += 1;
+                            },
+                            else => {},
+                        }
+                    }
+                    return result;
                 }
             }
         }
+
+        std.debug.panic("couldn't parse expression", .{});
 
         unreachable;
     }
@@ -245,6 +242,13 @@ pub const Expression = union(enum) {
 const Assignment = struct {
     lhs: *Token, // identifier
     rhs: *Expression,
+};
+
+const FunctionDeclaration = struct {
+    identifier: *Token,
+    arguments: []TypedIdentifier,
+    return_type: *Token,
+    block: *Container,
 };
 
 const Statement = union(enum) {
@@ -299,21 +303,22 @@ const Statement = union(enum) {
 const Container = struct {
     statements: []*Statement,
 
-    fn parse(allocator: Allocator, tokens: []Token) ParseError!*Container {
-        var list = ArrayList(*Statement).init(allocator);
-        for (tokens) |t| {
-            _ = t; // autofix
-            try list.append(undefined);
-            while (true) {
-                //
-            }
-        }
+    // fn parse(allocator: Allocator, tokens: []Token) ParseError!*Container {
+    //     var list = ArrayList(*Statement).init(allocator);
+    //     for (tokens) |t| {
+    //         _ = t; // autofix
+    //         try list.append(undefined);
+    //         while (true) {
+    //             //
+    //         }
+    //     }
 
-        unreachable;
-    }
+    //     unreachable;
+    // }
 };
 
 fn expectAst(T: type, expected: []const u8, source: []const u8) !void {
+    const pretty = @import("pretty");
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -326,13 +331,13 @@ fn expectAst(T: type, expected: []const u8, source: []const u8) !void {
     try std.testing.expectEqualStrings(expected, actual);
 }
 
-test "function definition" {
-    const source =
-        \\fn(param: Type) Return_Type {}
-    ;
-    const expected = "";
-    try expectAst(Expression, expected, source);
-}
+// test "function definition" {
+//     const source =
+//         \\fn(param: Type) Return_Type {}
+//     ;
+//     const expected = "";
+//     try expectAst(Expression, expected, source);
+// }
 
 test "const declaration" {
     const source =
@@ -357,7 +362,7 @@ test "const declaration" {
         \\      .start: usize => 12
         \\      .end: usize => 18
         \\    .rhs: *ast.Expression
-        \\      .value: *tokenization.Token
+        \\      .literal: *tokenization.Token
         \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 21
@@ -372,7 +377,7 @@ test "decimal integer literal" {
     ;
     const expected =
         \\*ast.Expression
-        \\  .value: *tokenization.Token
+        \\  .literal: *tokenization.Token
         \\    .tag: tokenization.Token.Tag
         \\      .integer_literal
         \\    .start: usize => 0
@@ -389,7 +394,7 @@ test "1 + 1" {
         \\*ast.Expression
         \\  .binary_operation: ast.BinaryOperation
         \\    .lhs: *ast.Expression
-        \\      .value: *tokenization.Token
+        \\      .literal: *tokenization.Token
         \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 0
@@ -400,7 +405,7 @@ test "1 + 1" {
         \\      .start: usize => 2
         \\      .end: usize => 3
         \\    .rhs: *ast.Expression
-        \\      .value: *tokenization.Token
+        \\      .literal: *tokenization.Token
         \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 4
@@ -416,33 +421,35 @@ test "function call with various arguments" {
     const expected =
         \\*ast.Expression
         \\  .function_call: ast.FunctionCall
-        \\    .identifier: *tokenization.Token
-        \\      .tag: tokenization.Token.Tag
-        \\        .identifier
-        \\      .start: usize => 0
-        \\      .end: usize => 8
+        \\    .identifier: ast.ScopedIdentifier
+        \\      .identifiers: []*tokenization.Token
+        \\        .tag: tokenization.Token.Tag
+        \\          .identifier
+        \\        .start: usize => 0
+        \\        .end: usize => 8
         \\    .arguments: []*ast.Expression
         \\      [0]: *ast.Expression
         \\        .function_call: ast.FunctionCall
-        \\          .identifier: *tokenization.Token
-        \\            .tag: tokenization.Token.Tag
-        \\              .identifier
-        \\            .start: usize => 9
-        \\            .end: usize => 25
+        \\          .identifier: ast.ScopedIdentifier
+        \\            .identifiers: []*tokenization.Token
+        \\              .tag: tokenization.Token.Tag
+        \\                .identifier
+        \\              .start: usize => 9
+        \\              .end: usize => 25
         \\          .arguments: []*ast.Expression
-        \\            .value: *tokenization.Token
+        \\            .literal: *tokenization.Token
         \\              .tag: tokenization.Token.Tag
         \\                .integer_literal
         \\              .start: usize => 26
         \\              .end: usize => 32
         \\      [1]: *ast.Expression
-        \\        .value: *tokenization.Token
+        \\        .literal: *tokenization.Token
         \\          .tag: tokenization.Token.Tag
         \\            .string_literal
         \\          .start: usize => 35
         \\          .end: usize => 40
         \\      [2]: *ast.Expression
-        \\        .value: *tokenization.Token
+        \\        .literal: *tokenization.Token
         \\          .tag: tokenization.Token.Tag
         \\            .integer_literal
         \\          .start: usize => 42
@@ -464,7 +471,7 @@ test "unary minus" {
         \\      .start: usize => 0
         \\      .end: usize => 1
         \\    .operand: *ast.Expression
-        \\      .value: *tokenization.Token
+        \\      .literal: *tokenization.Token
         \\        .tag: tokenization.Token.Tag
         \\          .integer_literal
         \\        .start: usize => 1
