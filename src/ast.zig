@@ -248,7 +248,7 @@ const FunctionDeclaration = struct {
     identifier: *Token,
     arguments: []TypedIdentifier,
     return_type: *Token,
-    block: *Container,
+    block: *Block,
 };
 
 const Statement = union(enum) {
@@ -300,21 +300,40 @@ const Statement = union(enum) {
     }
 };
 
-const Container = struct {
+const Block = struct {
     statements: []*Statement,
 
-    // fn parse(allocator: Allocator, tokens: []Token) ParseError!*Container {
-    //     var list = ArrayList(*Statement).init(allocator);
-    //     for (tokens) |t| {
-    //         _ = t; // autofix
-    //         try list.append(undefined);
-    //         while (true) {
-    //             //
-    //         }
-    //     }
+    /// `tokens` should be the stuff within the braces.
+    fn parse(allocator: Allocator, tokens: []Token) ParseError!Block {
+        var list = ArrayList(*Statement).init(allocator);
+        var index: usize = 0;
+        while (index < tokens.len - 1) {
+            // `end` is the token after the last one contained in the slice we're currently parsing
+            var end: usize = undefined;
+            switch (tokens[index].tag) {
+                // .keyword_if => {},
+                // .keyword_while => {},
+                // .keyword_for => {},
+                // single line
+                else => {
+                    if (try scanTokensInScope(
+                        &[_]Token.Tag{.semicolon},
+                        tokens[index..],
+                    )) |semicolon| {
+                        end = index + semicolon + 1;
+                    } else {
+                        std.debug.panic("couldn't parse block", .{});
+                    }
+                },
+            }
+            try list.append(try Statement.parse(allocator, tokens[index..end]));
+            index = end;
+        }
 
-    //     unreachable;
-    // }
+        return .{
+            .statements = try list.toOwnedSlice(),
+        };
+    }
 };
 
 fn expectAst(T: type, expected: []const u8, source: []const u8) !void {
@@ -331,13 +350,81 @@ fn expectAst(T: type, expected: []const u8, source: []const u8) !void {
     try std.testing.expectEqualStrings(expected, actual);
 }
 
-// test "function definition" {
-//     const source =
-//         \\fn(param: Type) Return_Type {}
-//     ;
-//     const expected = "";
-//     try expectAst(Expression, expected, source);
-// }
+test "block" {
+    const source =
+        \\const a: Int = 5;
+        \\var b: Int = a;
+        \\do_stuff(b);
+    ;
+    const expected =
+        \\ast.Block
+        \\  .statements: []*ast.Statement
+        \\    [0]: *ast.Statement
+        \\      .declaration: ast.Declaration
+        \\        .const_var: *tokenization.Token
+        \\          .tag: tokenization.Token.Tag
+        \\            .keyword_const
+        \\          .start: usize => 0
+        \\          .end: usize => 5
+        \\        .identifier: *tokenization.Token
+        \\          .tag: tokenization.Token.Tag
+        \\            .identifier
+        \\          .start: usize => 6
+        \\          .end: usize => 7
+        \\        .type: ?*tokenization.Token
+        \\          .tag: tokenization.Token.Tag
+        \\            .identifier
+        \\          .start: usize => 9
+        \\          .end: usize => 12
+        \\        .rhs: *ast.Expression
+        \\          .literal: *tokenization.Token
+        \\            .tag: tokenization.Token.Tag
+        \\              .integer_literal
+        \\            .start: usize => 15
+        \\            .end: usize => 16
+        \\    [1]: *ast.Statement
+        \\      .declaration: ast.Declaration
+        \\        .const_var: *tokenization.Token
+        \\          .tag: tokenization.Token.Tag
+        \\            .keyword_var
+        \\          .start: usize => 18
+        \\          .end: usize => 21
+        \\        .identifier: *tokenization.Token
+        \\          .tag: tokenization.Token.Tag
+        \\            .identifier
+        \\          .start: usize => 22
+        \\          .end: usize => 23
+        \\        .type: ?*tokenization.Token
+        \\          .tag: tokenization.Token.Tag
+        \\            .identifier
+        \\          .start: usize => 25
+        \\          .end: usize => 28
+        \\        .rhs: *ast.Expression
+        \\          .identifier: ast.ScopedIdentifier
+        \\            .identifiers: []*tokenization.Token
+        \\              .tag: tokenization.Token.Tag
+        \\                .identifier
+        \\              .start: usize => 31
+        \\              .end: usize => 32
+        \\    [2]: *ast.Statement
+        \\      .expression: *ast.Expression
+        \\        .function_call: ast.FunctionCall
+        \\          .identifier: ast.ScopedIdentifier
+        \\            .identifiers: []*tokenization.Token
+        \\              .tag: tokenization.Token.Tag
+        \\                .identifier
+        \\              .start: usize => 34
+        \\              .end: usize => 42
+        \\          .arguments: []*ast.Expression
+        \\            .identifier: ast.ScopedIdentifier
+        \\              .identifiers: []*tokenization.Token
+        \\                .tag: tokenization.Token.Tag
+        \\                  .identifier
+        \\                .start: usize => 43
+        \\                .end: usize => 44
+    ;
+    try expectAst(Block, expected, source);
+}
 
 test "const declaration" {
     const source =
