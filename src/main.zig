@@ -9,5 +9,5 @@ test {
     _ = @import("ast.zig");
     _ = @import("tokenization.zig");
     _ = @import("types.zig");
-    _ = @import("render.zig");
+    _ = @import("bytecode.zig");
 }
