@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) void {
         b.fmt("{s}", .{urn_text}),
     });
 
-    const llvm = b.host.result.cpu.arch == .x86_64;
+    const llvm = !(b.host.result.cpu.arch == .x86_64);
 
     const urn_step = b.step("urn", "You made a typo");
     urn_step.dependOn(&urn.step);
