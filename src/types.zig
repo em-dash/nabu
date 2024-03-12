@@ -1,8 +1,9 @@
 const std = @import("std");
 const Value = std.atomic.Value;
+const AutoHashMap = std.AutoHashMap;
 
 const ObjectHeader = struct {
-    refs: usize,
+    // refs: usize,
 };
 
 const String = struct {
@@ -10,9 +11,11 @@ const String = struct {
     slice: []u8,
 };
 
-const Object = union(enum) {
-    small_int: i32,
-    // small_float: f32,
-    bool: bool,
-    heap_object: *ObjectHeader,
+const Object = struct {
+    data: union {
+        header: *ObjectHeader,
+        small_int: i32,
+        // small_float: f32,
+        bool: bool,
+    },
 };

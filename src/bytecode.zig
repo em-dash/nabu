@@ -19,22 +19,37 @@ const fmt = std.fmt;
 // };
 
 const Opcode = enum(u8) {
+    no_op,
     add,
     subtract,
     multiply,
     divide,
-    load_const,
+    load_id,
+    load_readonly,
+    load_value,
+    store_value,
+    store_pointer,
+    print_top_1,
+    call_function,
+    jump_relative,
+    jump,
 
-    inline fn takesArgument(opcode: Opcode) bool {
+    // extended = 255,
+
+    /// Returns the length of the argument of `opcode`; returns 0 if it does not take an argument.
+    inline fn argLength(opcode: Opcode) u2 {
         return switch (opcode) {
-            .load_const => true,
-            else => false,
+            // zig fmt: off
+            .add, .subtract, .multiply, .divide, => 0,
+            .call_function, .jump_relative, => 1,
+            .load_readonly, .load_id, .store_value, .store_pointer, .load_value, .jump, => 4, 
+            // zig fmt: on
         };
     }
 };
 
-/// Creates a `Module` out of the given source code
-const Renderer = struct {
+/// Used to build a `Module` out of the given source code
+const Generator = struct {
     allocator: Allocator,
     small_ints: ArrayList(i32),
     // small_floats: ArrayList(f32),
@@ -44,7 +59,7 @@ const Renderer = struct {
     code_data: ArrayList(u8),
     functions: ArrayList([]u8), // indexes of functions
 
-    pub fn init(allocator: Allocator) Renderer {
+    pub fn init(allocator: Allocator) Generator {
         return .{
             .allocator = allocator,
             .small_ints = ArrayList(i32).init(allocator),
