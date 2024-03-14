@@ -31,11 +31,18 @@ pub fn build(b: *std.Build) void {
     urn.addArgs(&.{
         b.fmt("{s}", .{urn_text}),
     });
-
-    const llvm = !(b.host.result.cpu.arch == .x86_64);
-
     const urn_step = b.step("urn", "You made a typo");
     urn_step.dependOn(&urn.step);
+
+    const clean = b.addSystemCommand(&.{"rm"});
+    clean.addArgs(&.{ "-rf", "zig-out", "zig-cache" });
+    const clean_step = b.step(
+        "clean",
+        "Remove output and cache (shouldn't be required, just to save space)",
+    );
+    clean_step.dependOn(&clean.step);
+
+    const llvm = !(b.host.result.cpu.arch == .x86_64);
 
     const exe = b.addExecutable(.{
         .name = "nabu",
