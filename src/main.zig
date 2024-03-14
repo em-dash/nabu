@@ -6,8 +6,9 @@ pub fn main() !void {
 }
 
 test {
-    _ = @import("ast.zig");
-    _ = @import("tokenization.zig");
-    _ = @import("types.zig");
-    _ = @import("bytecode.zig");
+    std.testing.refAllDeclsRecursive(@import("ast.zig"));
+    std.testing.refAllDeclsRecursive(@import("tokenization.zig"));
+    std.testing.refAllDeclsRecursive(@import("types.zig"));
+    std.testing.refAllDeclsRecursive(@import("bytecode.zig"));
+    std.testing.refAllDeclsRecursive(@import("runtime.zig"));
 }

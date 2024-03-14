@@ -1,7 +1,7 @@
 # syntax etc
 - https://unicode.org/reports/tr31/#Immutable_Identifier_Syntax
 ## general
-###
+- no statements at base level of structs; entry point is `main`
 ```
 // comment
 // just copy comment syntax from zig and co.
@@ -90,3 +90,7 @@ you can get a reference to a thing by saying `var b = &a`
 
 # compiler design
 - assume u32
+# runtime design
+- all the scripting language's memory (ie objects created and used by the program being run) is in a contiguous chunk, and is address in 32-bit words
+    - bools would be pretty gross, but those are one-offs
+    - arrays, maps, etc can be optimized fit the actual size of the type

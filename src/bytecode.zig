@@ -13,11 +13,6 @@ const types = @import("types.zig");
 const ObjectHeader = types.ObjectHeader;
 const fmt = std.fmt;
 
-// const OperationAndArgument = packed struct {
-//     op: Opcode,
-//     arg: u32,
-// };
-
 const Opcode = enum(u8) {
     no_op,
     add,
@@ -29,7 +24,7 @@ const Opcode = enum(u8) {
     load_value,
     store_value,
     store_pointer,
-    print_top_1,
+    print_tos,
     call_function,
     jump_relative,
     jump,
@@ -73,15 +68,27 @@ const Generator = struct {
     }
 };
 
+/// Compiled module header.  Modules have the same memory representation in memory and in cache on
+/// disk.
+///
+/// Layout:
+/// - (magic number included in file, truncated here)
+/// - (version number included in file, truncated here)
+/// - header
+/// - name table (list of u32 byte offsets to names)
+/// - object table (list of u32 byte offsets to objects)
+/// - function table (list of u32 offsets to functions)
 const Module = struct {
-    allocator: Allocator,
-    small_ints: []const i32,
-    // small_floats: []const f32,
-    string_data: []const u8,
-    strings: []const []const u8,
-    objects: []const *ObjectHeader,
-    code_data: []const u8,
-    code: []const []const u8,
+    /// Name of the module.
+    name: [128]u8,
+    /// Offset to object table in bytes.
+    object_table: u32,
+    /// Length of the object table.
+    object_table_len: u32,
+    /// Offset to function table in bytes.
+    function_table: u32,
+    /// Length of the function table.
+    function_table_len: u32,
 };
 
 fn parseInt(string: []const u8) i32 {
