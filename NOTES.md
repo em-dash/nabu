@@ -94,3 +94,4 @@ you can get a reference to a thing by saying `var b = &a`
 - all the scripting language's memory (ie objects created and used by the program being run) is in a contiguous chunk, and is address in 32-bit words
     - bools would be pretty gross, but those are one-offs
     - arrays, maps, etc can be optimized fit the actual size of the type
+- green threads?  (also why are they called that)

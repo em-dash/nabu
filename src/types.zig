@@ -12,7 +12,7 @@ const Type = enum(u16) {
     _,
 };
 
-const SmallType = enum(u2) {
+const ShortType = enum(u2) {
     int,
     float,
     bool,
