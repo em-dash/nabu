@@ -116,7 +116,7 @@ const Generator = struct {
 };
 
 /// Compiled module header.  Modules have the same memory representation in memory and in cache on
-/// disk.
+/// disk.  Data is little-endian.
 ///
 /// Layout:
 /// - (magic number included in file, truncated here)
