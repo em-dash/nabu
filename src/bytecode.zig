@@ -9,11 +9,14 @@ const tokenize = @import("tokenization.zig");
 const Tokenizer = tokenize.Tokenizer;
 const Token = tokenize.Token;
 const ast = @import("ast.zig");
-const types = @import("types.zig");
-const ObjectIndex = types.ObjectIndex;
-const InstructionIndex = types.InstructionIndex;
-const ObjectHeader = types.ObjectHeader;
+// const types = @import("types.zig");
+// const ObjectIndex = types.ObjectIndex;
+// const InstructionIndex = types.InstructionIndex;
+// const ObjectHeader = types.ObjectHeader;
 const fmt = std.fmt;
+
+const runtime = @import("runtime.zig");
+const Type = runtime.Type;
 
 const Opcode = enum(u8) {
     add,
@@ -30,6 +33,7 @@ const Opcode = enum(u8) {
     no_op,
     store,
     subtract,
+    stack_local,
 
     // extended = 255,
 
@@ -52,6 +56,7 @@ const Opcode = enum(u8) {
         .no_op = void,
         .store = u32,
         .subtract = void,
+        .stack_local = Type,
     });
 
     inline fn argLength(self: Opcode) usize {
@@ -91,29 +96,29 @@ pub fn bytecodeToString(allocator: Allocator, code: []const u8) ![]const u8 {
 }
 
 /// Used to build a `Module` out of the given source code
-const Generator = struct {
-    allocator: Allocator,
-    small_ints: ArrayList(i32),
-    // small_floats: ArrayList(f32),
-    string_data: ArrayList(u8),
-    strings: ArrayList([]u8), // indexes of strings
-    objects: ArrayList(*ObjectHeader),
-    code_data: ArrayList(u8),
-    functions: ArrayList([]u8), // indexes of functions
+// const Generator = struct {
+//     allocator: Allocator,
+//     small_ints: ArrayList(i32),
+//     // small_floats: ArrayList(f32),
+//     string_data: ArrayList(u8),
+//     strings: ArrayList([]u8), // indexes of strings
+//     objects: ArrayList(*ObjectHeader),
+//     code_data: ArrayList(u8),
+//     functions: ArrayList([]u8), // indexes of functions
 
-    pub fn init(allocator: Allocator) Generator {
-        return .{
-            .allocator = allocator,
-            .small_ints = ArrayList(i32).init(allocator),
-            // .small_floats: ArrayList(f32).init(allocator),
-            .string_data = ArrayList(u8).init(allocator),
-            .strings = ArrayList([]u8).init(allocator),
-            .objects = ArrayList(*ObjectHeader),
-            .code_data = ArrayList(u8),
-            .functions = ArrayList([]u8),
-        };
-    }
-};
+//     pub fn init(allocator: Allocator) Generator {
+//         return .{
+//             .allocator = allocator,
+//             .small_ints = ArrayList(i32).init(allocator),
+//             // .small_floats: ArrayList(f32).init(allocator),
+//             .string_data = ArrayList(u8).init(allocator),
+//             .strings = ArrayList([]u8).init(allocator),
+//             .objects = ArrayList(*ObjectHeader),
+//             .code_data = ArrayList(u8),
+//             .functions = ArrayList([]u8),
+//         };
+//     }
+// };
 
 /// Compiled module header.  Modules have the same memory representation in memory and in cache on
 /// disk.  Data is little-endian.

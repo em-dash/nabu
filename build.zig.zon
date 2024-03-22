@@ -17,6 +17,10 @@
             .url = "https://github.com/timfayz/pretty/archive/refs/tags/v0.9.3.tar.gz",
             .hash = "1220b78396db74b148d5da7d8be46ce7cf9109fc5c2027303c577eee009b8088bce9",
         },
+        .ziglyph = .{
+            .url = "git+https://codeberg.org/dude_the_builder/ziglyph.git#947ed39203bf90412e3d16cbcf936518b6f23af0",
+            .hash = "12208b23d1eb6dcb929e85346524db8f8b8aa1401bdf8a97dee1e0cfb55da8d5fb42",
+        },
     },
     .paths = .{
         "build.zig",
