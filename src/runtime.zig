@@ -6,6 +6,7 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const AutoHashMapUnmanaged = std.AutoHashMapUnmanaged;
 const AutoHashMap = std.AutoHashMap;
 const assert = std.debug.assert;
+const testing = std.testing;
 
 const bytecode = @import("bytecode.zig");
 const Module = bytecode.Module;
@@ -19,33 +20,34 @@ pub const ShortType = enum(u3) {
     bool,
     int,
     float,
-    string,
-    array,
-    map,
-    reference,
+    // string,
+    // array,
+    // map,
+    // reference,
 };
 
 pub const FullType = enum(u32) {
     bool,
     int,
     float,
-    string,
-    array,
-    map,
+    // string,
+    // array,
+    // map,
     _,
 };
 
-pub const ContainerType = enum {
+pub const UserType = enum {
+    /// Not applicable.
+    na,
     @"struct",
     @"enum",
-    // @"union",
+    @"union",
     interface,
 };
 
 pub const ObjectHeader = struct {
     type: FullType,
-    /// This is only defined for `_` values of `type`, otherwise it's undefined.
-    container: ContainerType,
+    user_type: UserType,
 };
 
 pub const Bool = struct {
@@ -63,19 +65,26 @@ pub const Float = struct {
     value: f32,
 };
 
-pub const String = struct {
-    header: ObjectHeader,
-    value: ArrayListUnmanaged(u8),
-};
+// pub const String = struct {
+//     header: ObjectHeader,
+//     value: ArrayListUnmanaged(u8),
+// };
 
-pub const Array = struct {
-    header: ObjectHeader,
-    value: ArrayListUnmanaged(InPlaceObject),
-};
+// pub const Array = struct {
+//     header: ObjectHeader,
+//     value: ArrayListUnmanaged(InPlaceObject),
+// };
 
-pub const Map = struct {
-    header: ObjectHeader,
-    value: AutoHashMapUnmanaged(InPlaceObject, InPlaceObject),
+// pub const Map = struct {
+//     header: ObjectHeader,
+//     value: AutoHashMapUnmanaged(InPlaceObject, InPlaceObject),
+// };
+
+const Value = union {
+    bool: bool,
+    float: f32,
+    int: i32,
+    // ref: u32,
 };
 
 const InPlaceObject = packed struct {
@@ -83,12 +92,7 @@ const InPlaceObject = packed struct {
         assert(@bitSizeOf(InPlaceObject) == 64);
     }
 
-    value: union {
-        bool: bool,
-        float: f32,
-        int: i32,
-        ref: u32,
-    },
+    value: Value,
     @"error": Error,
     optional: bool,
     is_null: bool,
@@ -99,7 +103,7 @@ const InPlaceObject = packed struct {
 
 const Runtime = struct {
     allocator: Allocator,
-    bytecode: []u8,
+    bytecode: []u8 = &.{},
     function_table: AutoHashMapUnmanaged(u32, []u32) = .{},
     // readonly_objects: []u32,
     readonly_object_table: AutoHashMapUnmanaged(u32, []u32) = .{},
@@ -113,6 +117,10 @@ const Runtime = struct {
         return .{
             .allocator = allocator,
         };
+    }
+
+    pub fn deinit(self: Runtime) void {
+        _ = self; // autofix
     }
 
     // pub fn loadModuleFromMemory(self: *Runtime, module: *Module) !void {
@@ -199,21 +207,26 @@ const Frame = packed struct {
 const Thread = struct {
     call_stack: []u32,
     top_frame: u32,
+    runtime: *Runtime,
 
     fn pushFrame(pc: u32) !void {
         _ = pc; // autofix
     }
 
+    fn popFrame() void {}
+
     pub fn run(entry_point: u32) void {
         _ = entry_point; // autofix
     }
 
-    pub fn init(allocator: Allocator, options: Options) !Thread {
+    pub fn init(runtime: *const Runtime, options: Options) !Thread {
         if (options.stack_size % 4 != 0) return error.InvalidStackSize;
 
-        return .{
-            .call_stack = try allocator.alloc(u32, options.stack_size / 4),
-        };
+        var result: Thread = undefined;
+        result.runtime = runtime;
+        result.call_stack = try runtime.allocator.alloc(u32, options.stack_size / 4);
+
+        return result;
     }
 
     pub fn deinit(self: Thread, allocator: Allocator) void {
@@ -225,3 +238,9 @@ const Thread = struct {
         .stack_size = 1024 * 1024,
     };
 };
+
+test "load constants" {
+    var runtime = try Runtime.init(testing.allocator);
+    defer runtime.deinit();
+    _ = &runtime; // autofix
+}

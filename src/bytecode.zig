@@ -9,14 +9,10 @@ const tokenize = @import("tokenization.zig");
 const Tokenizer = tokenize.Tokenizer;
 const Token = tokenize.Token;
 const ast = @import("ast.zig");
-// const types = @import("types.zig");
-// const ObjectIndex = types.ObjectIndex;
-// const InstructionIndex = types.InstructionIndex;
-// const ObjectHeader = types.ObjectHeader;
 const fmt = std.fmt;
 
 const runtime = @import("runtime.zig");
-const Type = runtime.Type;
+const ShortType = runtime.ShortType;
 
 const Opcode = enum(u8) {
     add,
@@ -35,6 +31,7 @@ const Opcode = enum(u8) {
     subtract,
     stack_local,
 
+    halt = 255,
     // extended = 255,
 
     inline fn argType(self: Opcode) type {
@@ -56,7 +53,8 @@ const Opcode = enum(u8) {
         .no_op = void,
         .store = u32,
         .subtract = void,
-        .stack_local = Type,
+        .stack_local = ShortType,
+        .halt = void,
     });
 
     inline fn argLength(self: Opcode) usize {
@@ -73,7 +71,23 @@ const Opcode = enum(u8) {
     };
 };
 
-// pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {}
+/// Caller owns returned memory.
+pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
+    var token_iter = mem.tokenizeAny(u8, string, " \n\r");
+    var code = ArrayList(u8).init(allocator);
+    while (true) {
+        // find operation
+        const op = if (token_iter.next()) |op_string|
+            std.meta.stringToEnum(Opcode, op_string).?
+        else
+            break;
+        try code.append(@intFromEnum(op));
+        // add argument
+        switch (op) {
+            else => {}, // TODO make this exhaustive and remove `else`.
+        }
+    }
+}
 
 /// Caller owns returned slice. Asserts that `code` is valid bytecode.
 pub fn bytecodeToString(allocator: Allocator, code: []const u8) ![]const u8 {
@@ -163,7 +177,7 @@ const Module = packed struct {
     }
 };
 
-fn parseInt(string: []const u8) i32 {
+fn parseInt(string: []const u8) runtime.Int {
     const int = fmt.parseInt(i32, string, 0) catch |err| switch (err) {
         error.Overflow => {
             // parse big int here
@@ -173,8 +187,18 @@ fn parseInt(string: []const u8) i32 {
             std.debug.panic("invalid character in int literal", .{});
         },
     };
-    return int;
+    return .{
+        .header = .{
+            .type = .int,
+            .user_type = .na,
+        },
+        .value = int,
+    };
 }
+// pub const Int = struct {
+//     header: ObjectHeader,
+//     value: i32,
+// };
 
 test "parse decimal integer" {
     const string =
