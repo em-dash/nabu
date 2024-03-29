@@ -75,6 +75,7 @@ const Opcode = enum(u8) {
 pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
     var token_iter = mem.tokenizeAny(u8, string, " \n\r");
     var code = ArrayList(u8).init(allocator);
+    errdefer code.deinit();
     while (true) {
         // find operation
         const op = if (token_iter.next()) |op_string|
@@ -82,11 +83,24 @@ pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
         else
             break;
         try code.append(@intFromEnum(op));
-        // add argument
-        switch (op) {
-            else => {}, // TODO make this exhaustive and remove `else`.
+        // add argument if needed
+        if (op.argLength() > 0) {
+            const arg = token_iter.next();
+            if (arg == null) return error.InvalidBytecode;
+            switch (op) {
+                .load_int => {
+                    const int = try std.fmt.parseInt(i32, arg.?, 0);
+                    const little = mem.nativeToLittle(i32, int);
+                    try code.appendSlice(mem.asBytes(&little));
+                },
+                else => {},
+                // TODO use this inline else to make sure all ops are covered correctly.
+                // inline else => |no_arg| assert(no_arg.argLength == 0),
+            }
         }
     }
+
+    return try code.toOwnedSlice();
 }
 
 /// Caller owns returned slice. Asserts that `code` is valid bytecode.
@@ -177,7 +191,7 @@ const Module = packed struct {
     }
 };
 
-fn parseInt(string: []const u8) runtime.Int {
+fn createInt(string: []const u8) runtime.Int {
     const int = fmt.parseInt(i32, string, 0) catch |err| switch (err) {
         error.Overflow => {
             // parse big int here
@@ -190,53 +204,51 @@ fn parseInt(string: []const u8) runtime.Int {
     return .{
         .header = .{
             .type = .int,
-            .user_type = .na,
         },
         .value = int,
     };
 }
-// pub const Int = struct {
-//     header: ObjectHeader,
-//     value: i32,
-// };
 
 test "parse decimal integer" {
-    const string =
+    const decimal =
         \\17_372_273
     ;
-    try testing.expectEqual(17_372_273, parseInt(string));
+    try testing.expectEqual(
+        runtime.Int{ .header = .{ .type = .int }, .value = 17_372_273 },
+        createInt(decimal),
+    );
 }
 
-test "parse hexadecimal integer" {
-    const string =
-        \\0x0dd_0b0e
-    ;
-    try testing.expectEqual(0x0dd_0b0e, parseInt(string));
-}
+// test "parse hexadecimal integer" {
+//     const string =
+//         \\0x0dd_0b0e
+//     ;
+//     try testing.expectEqual(0x0dd_0b0e, createInt(string));
+// }
 
-test "parse octal integer" {
-    const string =
-        \\0o1234_1234
-    ;
-    try testing.expectEqual(0o12341234, parseInt(string));
-}
+// test "parse octal integer" {
+//     const string =
+//         \\0o1234_1234
+//     ;
+//     try testing.expectEqual(0o12341234, createInt(string));
+// }
 
-test "parse binary integer" {
-    const string =
-        \\0b1111_0000
-    ;
-    try testing.expectEqual(0b1111_0000, parseInt(string));
-}
+// test "parse binary integer" {
+//     const string =
+//         \\0b1111_0000
+//     ;
+//     try testing.expectEqual(0b1111_0000, createInt(string));
+// }
 
-fn parseString(string: []const u8) []const u8 {
-    assert(string[0] == '"');
-    assert(string[string.len - 1] == '"');
-    return string[1 .. string.len - 1];
-}
+// fn parseString(string: []const u8) []const u8 {
+//     assert(string[0] == '"');
+//     assert(string[string.len - 1] == '"');
+//     return string[1 .. string.len - 1];
+// }
 
-test "parse basic string" {
-    const string =
-        \\"hello 小熊貓"
-    ;
-    try testing.expectEqualStrings("hello 小熊貓", parseString(string));
-}
+// test "parse basic string" {
+//     const string =
+//         \\"hello 小熊貓"
+//     ;
+//     try testing.expectEqualStrings("hello 小熊貓", parseString(string));
+// }

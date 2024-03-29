@@ -37,8 +37,6 @@ pub const FullType = enum(u32) {
 };
 
 pub const UserType = enum {
-    /// Not applicable.
-    na,
     @"struct",
     @"enum",
     @"union",
@@ -47,7 +45,6 @@ pub const UserType = enum {
 
 pub const ObjectHeader = struct {
     type: FullType,
-    user_type: UserType,
 };
 
 pub const Bool = struct {
