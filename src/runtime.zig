@@ -108,87 +108,33 @@ const Runtime = struct {
     name_table: AutoHashMapUnmanaged(u32, []u8) = .{},
     // type_data: []u8,
     type_table: AutoHashMapUnmanaged(u32, []u32) = .{},
-    threads: AutoHashMapUnmanaged(u32, *Thread) = .{},
+    /// Main thread has id `0`.
+    threads: AutoHashMapUnmanaged(u32, Thread) = .{},
+
+    pub fn loadBytecode(self: Runtime, code: []const u8) !void {
+        try self.bytecode.appendSlice(self.allocator, code);
+    }
+
+    fn run(self: Runtime) void {
+        self.threads.getPtr(0).run(0);
+    }
 
     pub fn init(allocator: Allocator) !Runtime {
-        return .{
+        var result: Runtime = .{
             .allocator = allocator,
         };
+        const main_thread = try Thread.init(&result, .{});
+        try result.threads.putNoClobber(allocator, 0, main_thread);
+        return result;
     }
 
     pub fn deinit(self: Runtime) void {
-        _ = self; // autofix
+        self.threads.get(0).deinit();
+        var threads_iter = self.threads.iterator();
+        while (threads_iter.next()) |e| {
+            e.value_ptr.deinit();
+        }
     }
-
-    // pub fn loadModuleFromMemory(self: *Runtime, module: *Module) !void {
-    //     const unsafe_module_ptr: [*]u8 = @ptrCast(module);
-
-    //     // Load bytecode.
-    //     const old_bytecode_len = self.bytecode.items.len;
-    //     self.bytecode.appendSlice(
-    //         self.allocator,
-    //         unsafe_module_ptr[module.bytecode .. module.bytecode + module.bytecode_len],
-    //     );
-    //     const new_bytecode_slice = unsafe_module_ptr[old_bytecode_len..self.bytecode.items.len];
-    //     _ = new_bytecode_slice; // autofix
-
-    //     const old_objects_len = self.readonly_objects.items.len;
-    //     self.readonly_objects = self.readonly_objects.appendSlice(
-    //         self.allocator,
-    //         unsafe_module_ptr[module.object_table .. module.object_table + module.object_table_len],
-    //     );
-    //     const new_objects_slice =
-    //         unsafe_module_ptr[old_objects_len..self.readonly_objects.items.len];
-    //     _ = new_objects_slice; // autofix
-
-    //     var new_names = AutoHashMap(u32, []const u8).init(module.allocator);
-    //     // Read name table.
-    //     {
-    //         const name_table_start = @sizeOf(Module);
-    //         const name_table_slice =
-    //             unsafe_module_ptr[name_table_start .. name_table_start + module.name_table_len];
-    //         var index = 0;
-    //         while (true) {
-    //             const id = mem.readInt(u32, name_table_slice[index .. index + 4], .little);
-    //             index += 4;
-    //             const name = mem.sliceTo(name_table_slice[index..], '\x00');
-    //             // We assume the module is valid here.
-    //             new_names.put(name, id);
-    //             if (index == 0) break;
-    //         }
-
-    //         // temporary: just put the names in without processing
-    //         var iter = new_names.iterator();
-    //         while (iter.next()) |name| {
-    //             const value = try self.allocator.dupe(u8, name.value_ptr.*);
-    //             self.name_table.putNoClobber(self.allocator, name.key_ptr.*, value);
-    //         }
-
-    //         // // Match names with existing nametables.
-    //         // var name_remaps = AutoHashMap(u32, []const u8).init(module.allocator);
-    //         // _ = name_remaps; // autofix
-    //         // {
-    //         //     var new_names_iter = new_names.iterator();
-    //         //     var name_table_iter = self.name_table.iterator();
-    //         //     while (new_names_iter.next()) |new_name| {
-    //         //         _ = new_name; // autofix
-    //         //         while (name_table_iter.next()) |existing_name| {
-    //         //             _ = existing_name; // autofix
-    //         //         }
-    //         //     }
-    //         // }
-
-    //         // // Resolve identifiers.
-    //     }
-
-    //     var index: usize = 0;
-    //     _ = index; // autofix
-    //     {
-    //         while (true) {}
-    //     }
-    // }
-
-    // fn loadModuleFromFile() !void {}
 };
 
 /// Stack frame.
@@ -204,7 +150,7 @@ const Frame = packed struct {
 const Thread = struct {
     call_stack: []u32,
     top_frame: u32,
-    runtime: *Runtime,
+    runtime: *const Runtime,
 
     fn pushFrame(pc: u32) !void {
         _ = pc; // autofix
@@ -212,7 +158,8 @@ const Thread = struct {
 
     fn popFrame() void {}
 
-    pub fn run(entry_point: u32) void {
+    pub fn run(self: *Thread, entry_point: u32) void {
+        _ = self; // autofix
         _ = entry_point; // autofix
     }
 
@@ -226,18 +173,21 @@ const Thread = struct {
         return result;
     }
 
-    pub fn deinit(self: Thread, allocator: Allocator) void {
-        allocator.free(self.call_stack);
+    pub fn deinit(self: Thread) void {
+        self.runtime.allocator.free(self.call_stack);
     }
 
     const Options = struct {
         /// Stack size in bytes.  Default 1MB.
-        .stack_size = 1024 * 1024,
+        stack_size: usize = 1024 * 1024,
     };
 };
 
 test "load constants" {
     var runtime = try Runtime.init(testing.allocator);
     defer runtime.deinit();
+    const code = bytecode.stringToBytecode(testing.allocator, "load_int 666");
+    defer testing.allocator.free(code);
+    runtime.run();
     _ = &runtime; // autofix
 }

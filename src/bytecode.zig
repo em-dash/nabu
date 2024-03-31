@@ -15,6 +15,7 @@ const runtime = @import("runtime.zig");
 const ShortType = runtime.ShortType;
 
 const Opcode = enum(u8) {
+    no_op,
     add,
     call_function,
     divide,
@@ -26,12 +27,11 @@ const Opcode = enum(u8) {
     load_int,
     load_readonly,
     multiply,
-    no_op,
     store,
     subtract,
     stack_local,
 
-    halt = 255,
+    halt,
     // extended = 255,
 
     inline fn argType(self: Opcode) type {
@@ -101,6 +101,23 @@ pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
     }
 
     return try code.toOwnedSlice();
+}
+
+test "simple bytecode" {
+    const string = "no_op load_int 0x1234 no_op no_op";
+    const actual = try stringToBytecode(testing.allocator, string);
+    defer testing.allocator.free(actual);
+    const expected = [_]u8{
+        @intFromEnum(Opcode.no_op),
+        @intFromEnum(Opcode.load_int),
+        0x34,
+        0x12,
+        0x00,
+        0x00,
+        @intFromEnum(Opcode.no_op),
+        @intFromEnum(Opcode.no_op),
+    };
+    try testing.expectEqualSlices(u8, &expected, actual);
 }
 
 /// Caller owns returned slice. Asserts that `code` is valid bytecode.
