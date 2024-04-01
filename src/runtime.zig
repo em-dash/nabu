@@ -115,8 +115,8 @@ const Runtime = struct {
         try self.bytecode.appendSlice(self.allocator, code);
     }
 
-    fn run(self: Runtime) void {
-        self.threads.getPtr(0).run(0);
+    fn run(self: *Runtime) void {
+        self.threads.getPtr(0).?.run(0);
     }
 
     pub fn init(allocator: Allocator) !Runtime {
@@ -128,12 +128,12 @@ const Runtime = struct {
         return result;
     }
 
-    pub fn deinit(self: Runtime) void {
-        self.threads.get(0).deinit();
+    pub fn deinit(self: *Runtime) void {
         var threads_iter = self.threads.iterator();
-        while (threads_iter.next()) |e| {
-            e.value_ptr.deinit();
+        while (threads_iter.next()) |entry| {
+            entry.value_ptr.deinit();
         }
+        self.threads.deinit(self.allocator);
     }
 };
 
@@ -169,11 +169,13 @@ const Thread = struct {
         var result: Thread = undefined;
         result.runtime = runtime;
         result.call_stack = try runtime.allocator.alloc(u32, options.stack_size / 4);
+        std.log.debug("just allocated: addr = {x}, size = {d}", .{ @intFromPtr(result.call_stack.ptr), result.call_stack.len });
 
         return result;
     }
 
     pub fn deinit(self: Thread) void {
+        std.log.debug("deallocating:   addr = {x}, size = {d}", .{ @intFromPtr(self.call_stack.ptr), self.call_stack.len });
         self.runtime.allocator.free(self.call_stack);
     }
 
@@ -184,10 +186,16 @@ const Thread = struct {
 };
 
 test "load constants" {
-    var runtime = try Runtime.init(testing.allocator);
-    defer runtime.deinit();
-    const code = bytecode.stringToBytecode(testing.allocator, "load_int 666");
-    defer testing.allocator.free(code);
+    testing.log_level = .debug;
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var runtime = try Runtime.init(allocator);
+    // defer runtime.deinit();
+    // const code = try bytecode.stringToBytecode(testing.allocator, "load_int 666");
+    // defer testing.allocator.free(code);
+
     runtime.run();
-    _ = &runtime; // autofix
 }
