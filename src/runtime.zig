@@ -11,6 +11,9 @@ const testing = std.testing;
 const bytecode = @import("bytecode.zig");
 const Module = bytecode.Module;
 
+const types = @import("types.zig");
+const IdSet = types.IdSet;
+
 pub const Error = enum(u16) {
     ok = 0,
     _,
@@ -100,44 +103,38 @@ const InPlaceObject = packed struct {
 
 const Runtime = struct {
     allocator: Allocator,
-    // bytecode: []u8 = &.{},
-    // function_table: AutoHashMapUnmanaged(u32, []u32) = .{},
-    // readonly_objects: []u32,
-    // readonly_object_table: AutoHashMapUnmanaged(u32, []u32) = .{},
-    // names: []u8,
-    // name_table: AutoHashMapUnmanaged(u32, []u8) = .{},
-    // type_data: []u8,
-    // type_table: AutoHashMapUnmanaged(u32, []u32) = .{},
+    bytecode: []u8 = &.{},
+    /// Table of u32 locations of the start of functions.
+    function_table: IdSet(u32) = .{},
+    readonly_object_table: IdSet(ObjectHeader) = .{},
+    name_table: IdSet([]u8) = .{},
+    type_table: IdSet(FullType) = .{},
     /// Main thread has id `0`.
-    // threads: AutoHashMapUnmanaged(u32, Thread) = .{},
-    main_thread: Thread,
+    threads: IdSet(Thread) = .{},
 
     pub fn loadBytecode(self: Runtime, code: []const u8) !void {
         try self.bytecode.appendSlice(self.allocator, code);
     }
 
     fn run(self: *Runtime) void {
-        self.threads.getPtr(0).?.run(0);
+        self.threads.get(0).?.run(0);
     }
 
-    pub fn init(allocator: Allocator) !Runtime {
-        var result: Runtime = .{
-            .allocator = allocator,
-            .main_thread = undefined,
-        };
-        // const main_thread = try Thread.init(&result, .{});
-        result.main_thread = try Thread.init(&result, .{});
-        // try result.threads.put(allocator, 69, main_thread);
+    pub fn create(allocator: Allocator) !*Runtime {
+        const result = try allocator.create(Runtime);
+        result.allocator = allocator;
+        try result.threads.put(allocator, try Thread.init(result, .{}));
         return result;
     }
 
-    pub fn deinit(self: *Runtime) void {
+    pub fn destroy(self: *Runtime) void {
         // var threads_iter = self.threads.iterator();
         // while (threads_iter.next()) |entry| {
         //     entry.value_ptr.deinit();
         // }
         // self.threads.deinit(self.allocator);
         self.main_thread.deinit();
+        self.allocator.destroy(self);
     }
 };
 
@@ -173,30 +170,27 @@ const Thread = struct {
         var result: Thread = undefined;
         result.runtime = runtime;
         result.call_stack = try runtime.allocator.alloc(u32, options.stack_size / 4);
-        std.log.debug("just allocated: addr = {x}, size = {d}", .{ @intFromPtr(result.call_stack.ptr), result.call_stack.len });
 
         return result;
     }
 
     pub fn deinit(self: Thread) void {
-        std.log.debug("deallocating:   addr = {x}, size = {d}", .{ @intFromPtr(self.call_stack.ptr), self.call_stack.len });
         self.runtime.allocator.free(self.call_stack);
     }
 
     const Options = struct {
         /// Stack size in bytes.  Default 1MB.
-        // stack_size: usize = 1024 * 1024,
-        stack_size: usize = 1024,
+        stack_size: usize = 1024 * 1024,
     };
 };
 
 test "load constants" {
     testing.log_level = .debug;
 
-    var runtime = try Runtime.init(testing.allocator);
-    defer runtime.deinit();
-    // const code = try bytecode.stringToBytecode(testing.allocator, "load_int 666");
-    // defer testing.allocator.free(code);
+    var runtime = try Runtime.create(testing.allocator);
+    defer runtime.destroy();
+    const code = try bytecode.stringToBytecode(testing.allocator, "load_int 666");
+    defer testing.allocator.free(code);
 
     // runtime.run();
 }

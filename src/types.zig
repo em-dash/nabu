@@ -2,8 +2,48 @@ const std = @import("std");
 const assert = std.debug.assert;
 const Value = std.atomic.Value;
 const AutoHashMap = std.AutoHashMap;
+const Allocator = std.mem.Allocator;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const AutoArrayHashMap = std.AutoArrayHashMap;
 
-const Function = struct {};
+// const Set = struct {
+//     allocator: Allocator,
+//     ids: ArrayListUnmanaged,
+//     data: ArrayListUnmanaged,
+// };
+
+pub fn IdSet(T: type) type {
+    return struct {
+        map: AutoArrayHashMap(u32, T),
+
+        const Self = @This();
+
+        pub fn init(allocator: Allocator) Self {
+            return .{
+                .map = AutoArrayHashMap.init(allocator),
+            };
+        }
+
+        pub fn remove(self: *Self, id: u32) bool {
+            return self.map.swapRemove(id);
+        }
+
+        pub fn get(self: Self, id: u32) ?T {
+            return self.map.getPtr(id);
+        }
+
+        /// Inserts `item` into the set and returns its id.
+        pub fn put(self: *Self, item: T) !u32 {
+            const new_id = id_loop: for (0..std.math.maxInt(u32)) |n| {
+                if (!self.map.contains(n)) break :id_loop n;
+            } else {
+                return error.SetFull;
+            };
+
+            try self.map.putNoClobber(new_id, item);
+        }
+    };
+}
 
 const Slice32 = struct {
     start: u32,
