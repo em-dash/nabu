@@ -109,8 +109,8 @@ const Runtime = struct {
     readonly_object_table: IdSet(ObjectHeader) = .{},
     name_table: IdSet([]u8) = .{},
     type_table: IdSet(FullType) = .{},
-    /// Main thread has id `0`.
-    threads: IdSet(Thread) = .{},
+    threads: IdSet(Thread),
+    main_thread: u32,
 
     pub fn loadBytecode(self: Runtime, code: []const u8) !void {
         try self.bytecode.appendSlice(self.allocator, code);
@@ -123,17 +123,17 @@ const Runtime = struct {
     pub fn create(allocator: Allocator) !*Runtime {
         const result = try allocator.create(Runtime);
         result.allocator = allocator;
-        try result.threads.put(allocator, try Thread.init(result, .{}));
+        result.threads = IdSet(Thread).init();
+        result.main_thread = try result.threads.put(allocator, try Thread.init(result, .{}));
         return result;
     }
 
     pub fn destroy(self: *Runtime) void {
-        // var threads_iter = self.threads.iterator();
-        // while (threads_iter.next()) |entry| {
-        //     entry.value_ptr.deinit();
-        // }
-        // self.threads.deinit(self.allocator);
-        self.main_thread.deinit();
+        var threads_iter = self.threads.map.iterator();
+        while (threads_iter.next()) |entry| {
+            entry.value_ptr.deinit();
+        }
+        self.threads.deinit(self.allocator);
         self.allocator.destroy(self);
     }
 };

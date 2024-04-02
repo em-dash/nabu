@@ -4,7 +4,7 @@ const Value = std.atomic.Value;
 const AutoHashMap = std.AutoHashMap;
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
-const AutoArrayHashMap = std.AutoArrayHashMap;
+const AutoArrayHashMapUnmanaged = std.AutoArrayHashMapUnmanaged;
 
 // const Set = struct {
 //     allocator: Allocator,
@@ -14,14 +14,18 @@ const AutoArrayHashMap = std.AutoArrayHashMap;
 
 pub fn IdSet(T: type) type {
     return struct {
-        map: AutoArrayHashMap(u32, T),
+        map: AutoArrayHashMapUnmanaged(u32, T),
 
         const Self = @This();
 
-        pub fn init(allocator: Allocator) Self {
+        pub fn init() Self {
             return .{
-                .map = AutoArrayHashMap.init(allocator),
+                .map = .{},
             };
+        }
+
+        pub fn deinit(self: *Self, allocator: Allocator) void {
+            self.map.deinit(allocator);
         }
 
         pub fn remove(self: *Self, id: u32) bool {
@@ -33,14 +37,17 @@ pub fn IdSet(T: type) type {
         }
 
         /// Inserts `item` into the set and returns its id.
-        pub fn put(self: *Self, item: T) !u32 {
-            const new_id = id_loop: for (0..std.math.maxInt(u32)) |n| {
-                if (!self.map.contains(n)) break :id_loop n;
-            } else {
-                return error.SetFull;
+        pub fn put(self: *Self, allocator: Allocator, item: T) !u32 {
+            var i: u32 = 0;
+            var overflow: u1 = 0;
+            const new_id = id_loop: while (true) {
+                if (!self.map.contains(i)) break :id_loop i;
+                i, overflow = @addWithOverflow(i, 1);
+                if (overflow == 1) return error.IdSetFull;
             };
 
-            try self.map.putNoClobber(new_id, item);
+            try self.map.putNoClobber(allocator, new_id, item);
+            return new_id;
         }
     };
 }
