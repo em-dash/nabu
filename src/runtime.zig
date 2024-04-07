@@ -10,6 +10,8 @@ const testing = std.testing;
 
 const bytecode = @import("bytecode.zig");
 const Module = bytecode.Module;
+const Opcode = bytecode.Opcode;
+const Argument = bytecode.Argument;
 
 const types = @import("types.zig");
 const IdSet = types.IdSet;
@@ -102,26 +104,28 @@ const InPlaceObject = packed struct {
 };
 
 const Runtime = struct {
-    allocator: Allocator,
-    bytecode: []u8 = &.{},
+    allocator: Allocator = undefined,
+    // bytecode: []u8 = &.{},
+    bytecode: ArrayListUnmanaged(u8) = .{},
     /// Table of u32 locations of the start of functions.
-    function_table: IdSet(u32) = .{},
-    readonly_object_table: IdSet(ObjectHeader) = .{},
-    name_table: IdSet([]u8) = .{},
-    type_table: IdSet(FullType) = .{},
-    threads: IdSet(Thread),
-    main_thread: u32,
+    function_table: IdSet(u32) = IdSet(u32).init(),
+    readonly_object_table: IdSet(ObjectHeader) = IdSet(ObjectHeader).init(),
+    name_table: IdSet([]u8) = IdSet([]u8).init(),
+    type_table: IdSet(FullType) = IdSet(FullType).init(),
+    threads: IdSet(Thread) = IdSet(Thread).init(),
+    main_thread: u32 = undefined,
 
-    pub fn loadBytecode(self: Runtime, code: []const u8) !void {
+    pub fn loadBytecode(self: *Runtime, code: []const u8) !void {
         try self.bytecode.appendSlice(self.allocator, code);
     }
 
-    fn run(self: *Runtime) void {
-        self.threads.get(0).?.run(0);
+    pub fn run(self: *Runtime) void {
+        self.threads.get(self.main_thread).?.run(0);
     }
 
     pub fn create(allocator: Allocator) !*Runtime {
         const result = try allocator.create(Runtime);
+        result.* = .{};
         result.allocator = allocator;
         result.threads = IdSet(Thread).init();
         result.main_thread = try result.threads.put(allocator, try Thread.init(result, .{}));
@@ -134,6 +138,7 @@ const Runtime = struct {
             entry.value_ptr.deinit();
         }
         self.threads.deinit(self.allocator);
+        self.bytecode.deinit(self.allocator);
         self.allocator.destroy(self);
     }
 };
@@ -152,6 +157,7 @@ const Thread = struct {
     call_stack: []u32,
     top_frame: u32,
     runtime: *const Runtime,
+    pc: u32,
 
     fn pushFrame(pc: u32) !void {
         _ = pc; // autofix
@@ -160,8 +166,30 @@ const Thread = struct {
     fn popFrame() void {}
 
     pub fn run(self: *Thread, entry_point: u32) void {
-        _ = self; // autofix
-        _ = entry_point; // autofix
+        self.pc = entry_point;
+        while (true) {
+            const op: Opcode = @enumFromInt(self.bytecode[self.pc]);
+            const argument: Argument =
+                switch (op) {
+                .no_op => {},
+                .add => {},
+                .call_function => {},
+                .divide => {},
+                .jump => {},
+                .jump_relative => {},
+                .load_bool => {},
+                .load_float => {},
+                .load_index => {},
+                .load_int => {},
+                .load_readonly => {},
+                .multiply => {},
+                .store => {},
+                .subtract => {},
+                .stack_local => {},
+                .halt => {},
+            };
+            _ = argument; // autofix
+        }
     }
 
     pub fn init(runtime: *const Runtime, options: Options) !Thread {
@@ -185,12 +213,12 @@ const Thread = struct {
 };
 
 test "load constants" {
-    testing.log_level = .debug;
-
-    var runtime = try Runtime.create(testing.allocator);
+    const runtime = try Runtime.create(testing.allocator);
     defer runtime.destroy();
     const code = try bytecode.stringToBytecode(testing.allocator, "load_int 666");
     defer testing.allocator.free(code);
+
+    try runtime.loadBytecode(code);
 
     // runtime.run();
 }

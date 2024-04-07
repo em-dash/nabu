@@ -14,11 +14,30 @@ const fmt = std.fmt;
 const runtime = @import("runtime.zig");
 const ShortType = runtime.ShortType;
 
+const Argument = union(Opcode) {
+    add: void,
+    call_function: void,
+    divide: void,
+    halt: void,
+    jump: u32,
+    jump_relative: i8,
+    load_bool: bool,
+    load_float: f32,
+    load_index: u32,
+    load_int: i32,
+    load_readonly: u32,
+    load_stack_local: u16,
+    multiply: void,
+    no_op: void,
+    store: u32,
+    subtract: void,
+};
+
 const Opcode = enum(u8) {
-    no_op,
     add,
     call_function,
     divide,
+    halt,
     jump,
     jump_relative,
     load_bool,
@@ -26,49 +45,22 @@ const Opcode = enum(u8) {
     load_index,
     load_int,
     load_readonly,
+    load_stack_local,
     multiply,
+    no_op,
     store,
     subtract,
-    stack_local,
 
-    halt,
-    // extended = 255,
-
-    inline fn argType(self: Opcode) type {
-        return arg_types.get(self);
+    fn argType(self: Opcode) type {
+        return std.meta.TagPayload(Argument, self);
     }
 
-    const arg_types = std.EnumArray(Opcode, type).init(.{
-        .add = void,
-        .call_function = void,
-        .divide = void,
-        .jump_relative = i8,
-        .jump = u32,
-        .load_bool = bool,
-        .load_float = f32,
-        .load_index = u32,
-        .load_int = i32,
-        .load_readonly = u32,
-        .multiply = void,
-        .no_op = void,
-        .store = u32,
-        .subtract = void,
-        .stack_local = ShortType,
-        .halt = void,
-    });
-
-    inline fn argLength(self: Opcode) usize {
-        return arg_lens.get(self);
+    fn argLength(self: Opcode) usize {
+        // return switch ()@sizeOf(std.meta.TagPayload(Argument, self));
+        return switch (self) {
+            inline else => |s| @sizeOf(std.meta.TagPayload(Argument, s)),
+        };
     }
-
-    const arg_lens = arg_lens_block: {
-        var result = std.EnumArray(Opcode, usize).initUndefined();
-        var iter = result.iterator();
-        while (iter.next()) |opcode| {
-            result.set(opcode.key, @sizeOf(arg_types.get(opcode.key)));
-        }
-        break :arg_lens_block result;
-    };
 };
 
 /// Caller owns returned memory.
