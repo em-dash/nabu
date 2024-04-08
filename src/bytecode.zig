@@ -14,7 +14,7 @@ const fmt = std.fmt;
 const runtime = @import("runtime.zig");
 const ShortType = runtime.ShortType;
 
-const Argument = union(Opcode) {
+pub const Argument = union(Opcode) {
     add: void,
     call_function: void,
     divide: void,
@@ -33,7 +33,7 @@ const Argument = union(Opcode) {
     subtract: void,
 };
 
-const Opcode = enum(u8) {
+pub const Opcode = enum(u8) {
     add,
     call_function,
     divide,
@@ -51,11 +51,11 @@ const Opcode = enum(u8) {
     store,
     subtract,
 
-    fn argType(self: Opcode) type {
+    pub fn argType(self: Opcode) type {
         return std.meta.TagPayload(Argument, self);
     }
 
-    fn argLength(self: Opcode) usize {
+    pub fn argLength(self: Opcode) usize {
         // return switch ()@sizeOf(std.meta.TagPayload(Argument, self));
         return switch (self) {
             inline else => |s| @sizeOf(std.meta.TagPayload(Argument, s)),

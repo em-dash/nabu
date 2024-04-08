@@ -120,7 +120,7 @@ const Runtime = struct {
     }
 
     pub fn run(self: *Runtime) void {
-        self.threads.get(self.main_thread).?.run(0);
+        self.threads.getPtr(self.main_thread).?.run(0);
     }
 
     pub fn create(allocator: Allocator) !*Runtime {
@@ -167,10 +167,19 @@ const Thread = struct {
 
     pub fn run(self: *Thread, entry_point: u32) void {
         self.pc = entry_point;
-        while (true) {
-            const op: Opcode = @enumFromInt(self.bytecode[self.pc]);
-            const argument: Argument =
-                switch (op) {
+        main_loop: while (true) {
+            const op: Opcode = @enumFromInt(self.runtime.bytecode.items[self.pc]);
+            self.pc += 1;
+            const argument_slice = self.runtime.bytecode.items[self.pc .. self.pc + op.argLength()];
+            const argument: Argument = switch (op) {
+                inline else => |o| @unionInit(
+                    Argument,
+                    @tagName(o),
+                    mem.littleToNative(o.argType(), mem.bytesToValue(o.argType(), argument_slice)),
+                ),
+            };
+            self.pc += @intCast(op.argLength());
+            switch (op) {
                 .no_op => {},
                 .add => {},
                 .call_function => {},
@@ -185,9 +194,11 @@ const Thread = struct {
                 .multiply => {},
                 .store => {},
                 .subtract => {},
-                .stack_local => {},
-                .halt => {},
-            };
+                .load_stack_local => {},
+                .halt => {
+                    break :main_loop;
+                },
+            }
             _ = argument; // autofix
         }
     }
@@ -215,10 +226,10 @@ const Thread = struct {
 test "load constants" {
     const runtime = try Runtime.create(testing.allocator);
     defer runtime.destroy();
-    const code = try bytecode.stringToBytecode(testing.allocator, "load_int 666");
+    const code = try bytecode.stringToBytecode(testing.allocator, "load_int 666 halt");
     defer testing.allocator.free(code);
 
     try runtime.loadBytecode(code);
 
-    // runtime.run();
+    runtime.run();
 }

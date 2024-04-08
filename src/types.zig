@@ -32,7 +32,7 @@ pub fn IdSet(T: type) type {
             return self.map.swapRemove(id);
         }
 
-        pub fn get(self: Self, id: u32) ?T {
+        pub fn getPtr(self: Self, id: u32) ?*T {
             return self.map.getPtr(id);
         }
 
