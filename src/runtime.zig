@@ -25,19 +25,20 @@ pub const ShortType = enum(u3) {
     bool,
     int,
     float,
-    // string,
-    // array,
-    // map,
-    // reference,
+    string,
+    array,
+    map,
+    reference,
 };
 
 pub const FullType = enum(u32) {
     bool,
     int,
     float,
-    // string,
-    // array,
-    // map,
+    string,
+    array,
+    map,
+    reference,
     _,
 };
 
@@ -145,27 +146,31 @@ const Runtime = struct {
 
 /// Stack frame.
 const Frame = packed struct {
-    /// Program counter.
-    pc: u32,
     /// Index of the start of the previous stack frame; `std.math.maxInt(u32)` represents null.
     prev: u32,
-    /// Offset to top of stack from the start of this object.
-    tos: InPlaceObject,
+    /// Size of this stack frame; the next stack frame needs to leave this much space.
+    len: u32,
+    /// Register stack offset
+    reg_stack_start: u32,
 };
 
 const Thread = struct {
     call_stack: []u32,
+    register_area: []InPlaceObject,
     top_frame: u32,
     runtime: *const Runtime,
     pc: u32,
 
-    fn pushFrame(pc: u32) !void {
+    fn pushFrame(self: *Thread, pc: u32) !void {
+        _ = self; // autofix
         _ = pc; // autofix
     }
 
     fn popFrame() void {}
 
     pub fn run(self: *Thread, entry_point: u32) void {
+        // Build the entry point stack frame.  Aah.
+
         self.pc = entry_point;
         main_loop: while (true) {
             const op: Opcode = @enumFromInt(self.runtime.bytecode.items[self.pc]);
@@ -204,11 +209,13 @@ const Thread = struct {
     }
 
     pub fn init(runtime: *const Runtime, options: Options) !Thread {
-        if (options.stack_size % 4 != 0) return error.InvalidStackSize;
+        if (options.frame_stack_size % 4 != 0) return error.InvalidStackSize;
 
         var result: Thread = undefined;
         result.runtime = runtime;
-        result.call_stack = try runtime.allocator.alloc(u32, options.stack_size / 4);
+        result.call_stack = try runtime.allocator.alloc(u32, options.frame_stack_size / 4);
+        result.register_area =
+            try runtime.allocator.alloc(InPlaceObject, options.register_stack_size);
 
         return result;
     }
@@ -219,7 +226,9 @@ const Thread = struct {
 
     const Options = struct {
         /// Stack size in bytes.  Default 1MB.
-        stack_size: usize = 1024 * 1024,
+        frame_stack_size: usize = 1024 * 1024,
+        /// Register stack size in number of 8-byte items.
+        register_stack_size: usize = 4096,
     };
 };
 
