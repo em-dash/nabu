@@ -92,9 +92,20 @@ pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
                     const little = mem.nativeToLittle(u16, int);
                     try code.appendSlice(mem.asBytes(&little));
                 },
-                else => {},
-                // TODO use this inline else to make sure all ops are covered correctly.
-                // inline else => |no_arg| assert(no_arg.argLength == 0),
+                .call_function, .jump, .load_index, .load_readonly, .load_stack_local, .store => {
+                    const int = try std.fmt.parseInt(u32, arg.?, 0);
+                    const little = mem.nativeToLittle(u32, int);
+                    try code.appendSlice(mem.asBytes(&little));
+                },
+                .jump_relative => {
+                    const int = try std.fmt.parseInt(i8, arg.?, 0);
+                    const little = mem.nativeToLittle(i8, int);
+                    try code.appendSlice(mem.asBytes(&little));
+                },
+                .load_bool, .load_float => {
+                    std.debug.panic("not implemented", .{});
+                },
+                else => unreachable,
             }
         }
     }
