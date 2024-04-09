@@ -17,6 +17,7 @@ const ShortType = runtime.ShortType;
 pub const Argument = union(Opcode) {
     add: void,
     call_function: void,
+    set_stack_size: u16,
     divide: void,
     halt: void,
     jump: u32,
@@ -36,6 +37,7 @@ pub const Argument = union(Opcode) {
 pub const Opcode = enum(u8) {
     add,
     call_function,
+    set_stack_size,
     divide,
     halt,
     jump,
@@ -83,6 +85,11 @@ pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
                 .load_int => {
                     const int = try std.fmt.parseInt(i32, arg.?, 0);
                     const little = mem.nativeToLittle(i32, int);
+                    try code.appendSlice(mem.asBytes(&little));
+                },
+                .set_stack_size => {
+                    const int = try std.fmt.parseInt(u16, arg.?, 0);
+                    const little = mem.nativeToLittle(u16, int);
                     try code.appendSlice(mem.asBytes(&little));
                 },
                 else => {},
@@ -200,33 +207,33 @@ const Module = packed struct {
     }
 };
 
-fn createInt(string: []const u8) runtime.Int {
-    const int = fmt.parseInt(i32, string, 0) catch |err| switch (err) {
-        error.Overflow => {
-            // parse big int here
-            std.debug.panic("big ints not implemented", .{});
-        },
-        error.InvalidCharacter => {
-            std.debug.panic("invalid character in int literal", .{});
-        },
-    };
-    return .{
-        .header = .{
-            .type = .int,
-        },
-        .value = int,
-    };
-}
+// fn createInt(string: []const u8) runtime.Int {
+//     const int = fmt.parseInt(i32, string, 0) catch |err| switch (err) {
+//         error.Overflow => {
+//             // parse big int here
+//             std.debug.panic("big ints not implemented", .{});
+//         },
+//         error.InvalidCharacter => {
+//             std.debug.panic("invalid character in int literal", .{});
+//         },
+//     };
+//     return .{
+//         .header = .{
+//             .type = .int,
+//         },
+//         .value = int,
+//     };
+// }
 
-test "parse decimal integer" {
-    const decimal =
-        \\17_372_273
-    ;
-    try testing.expectEqual(
-        runtime.Int{ .header = .{ .type = .int }, .value = 17_372_273 },
-        createInt(decimal),
-    );
-}
+// test "parse decimal integer" {
+//     const decimal =
+//         \\17_372_273
+//     ;
+//     try testing.expectEqual(
+//         runtime.Int{ .header = .{ .type = .int }, .value = 17_372_273 },
+//         createInt(decimal),
+//     );
+// }
 
 // test "parse hexadecimal integer" {
 //     const string =

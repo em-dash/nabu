@@ -53,20 +53,20 @@ pub const ObjectHeader = struct {
     type: FullType,
 };
 
-pub const Bool = struct {
-    header: ObjectHeader,
-    value: bool,
-};
+// pub const Bool = struct {
+//     header: ObjectHeader,
+//     value: bool,
+// };
 
-pub const Int = struct {
-    header: ObjectHeader,
-    value: i32,
-};
+// pub const Int = struct {
+//     header: ObjectHeader,
+//     value: i32,
+// };
 
-pub const Float = struct {
-    header: ObjectHeader,
-    value: f32,
-};
+// pub const Float = struct {
+//     header: ObjectHeader,
+//     value: f32,
+// };
 
 // pub const String = struct {
 //     header: ObjectHeader,
@@ -83,7 +83,7 @@ pub const Float = struct {
 //     value: AutoHashMapUnmanaged(InPlaceObject, InPlaceObject),
 // };
 
-const Value = union {
+const Value = packed union {
     bool: bool,
     float: f32,
     int: i32,
@@ -147,29 +147,35 @@ const Runtime = struct {
 /// Stack frame.
 const Frame = packed struct {
     /// Index of the start of the previous stack frame; `std.math.maxInt(u32)` represents null.
-    prev: u32,
+    prev: u32 = std.math.maxInt(u32),
     /// Size of this stack frame; the next stack frame needs to leave this much space.
-    len: u32,
+    len: u32 = 0,
     /// Register stack offset
-    reg_stack_start: u32,
+    reg_base: u32,
+    reg_len: u32,
 };
 
 const Thread = struct {
-    call_stack: []u32,
-    register_area: []InPlaceObject,
+    call_stack: []u8,
+    register_stacks: []InPlaceObject,
     top_frame: u32,
     runtime: *const Runtime,
     pc: u32,
 
-    fn pushFrame(self: *Thread, pc: u32) !void {
-        _ = self; // autofix
-        _ = pc; // autofix
+    inline fn getTopFrame(self: *Thread) *Frame {
+        return @alignCast(mem.bytesAsValue(
+            Frame,
+            self.call_stack[self.top_frame .. self.top_frame + @sizeOf(Frame)],
+        ));
     }
-
-    fn popFrame() void {}
 
     pub fn run(self: *Thread, entry_point: u32) void {
         // Build the entry point stack frame.  Aah.
+        self.top_frame = 0;
+        self.getTopFrame().* = .{
+            .reg_base = 0,
+            .reg_len = 0,
+        };
 
         self.pc = entry_point;
         main_loop: while (true) {
@@ -194,9 +200,22 @@ const Thread = struct {
                 .load_bool => {},
                 .load_float => {},
                 .load_index => {},
-                .load_int => {},
+                .load_int => {
+                    const frame = self.getTopFrame();
+                    self.register_stacks[frame.*.reg_base + frame.*.reg_len] = .{
+                        .value = .{ .int = argument.load_int },
+                        .@"error" = .ok,
+                        .optional = false,
+                        .is_null = undefined,
+                        ._padding0 = undefined,
+                        .type = .int,
+                        ._padding1 = undefined,
+                    };
+                    frame.*.reg_len += 1;
+                },
                 .load_readonly => {},
                 .multiply => {},
+                .set_stack_size => {},
                 .store => {},
                 .subtract => {},
                 .load_stack_local => {},
@@ -204,17 +223,14 @@ const Thread = struct {
                     break :main_loop;
                 },
             }
-            _ = argument; // autofix
         }
     }
 
     pub fn init(runtime: *const Runtime, options: Options) !Thread {
-        if (options.frame_stack_size % 4 != 0) return error.InvalidStackSize;
-
         var result: Thread = undefined;
         result.runtime = runtime;
-        result.call_stack = try runtime.allocator.alloc(u32, options.frame_stack_size / 4);
-        result.register_area =
+        result.call_stack = try runtime.allocator.alloc(u8, options.frame_stack_size);
+        result.register_stacks =
             try runtime.allocator.alloc(InPlaceObject, options.register_stack_size);
 
         return result;
@@ -222,6 +238,7 @@ const Thread = struct {
 
     pub fn deinit(self: Thread) void {
         self.runtime.allocator.free(self.call_stack);
+        self.runtime.allocator.free(self.register_stacks);
     }
 
     const Options = struct {
@@ -235,10 +252,18 @@ const Thread = struct {
 test "load constants" {
     const runtime = try Runtime.create(testing.allocator);
     defer runtime.destroy();
-    const code = try bytecode.stringToBytecode(testing.allocator, "load_int 666 halt");
+    const code = try bytecode.stringToBytecode(testing.allocator,
+        \\set_stack_size 0
+        \\load_int 666
+        \\halt
+    );
     defer testing.allocator.free(code);
 
     try runtime.loadBytecode(code);
 
     runtime.run();
+    try testing.expectEqual(
+        666,
+        runtime.threads.getPtr(runtime.main_thread).?.register_stacks[0].value.int,
+    );
 }
