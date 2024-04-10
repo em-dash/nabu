@@ -120,8 +120,8 @@ const Runtime = struct {
         try self.bytecode.appendSlice(self.allocator, code);
     }
 
-    pub fn run(self: *Runtime) void {
-        self.threads.getPtr(self.main_thread).?.run(0);
+    pub fn run(self: *Runtime) !void {
+        try self.threads.getPtr(self.main_thread).?.run(0);
     }
 
     pub fn create(allocator: Allocator) !*Runtime {
@@ -157,7 +157,7 @@ const Frame = packed struct {
 
 const Thread = struct {
     call_stack: []u8,
-    register_stacks: []InPlaceObject,
+    reg: []InPlaceObject,
     top_frame: u32,
     runtime: *const Runtime,
     pc: u32,
@@ -169,7 +169,7 @@ const Thread = struct {
         ));
     }
 
-    pub fn run(self: *Thread, entry_point: u32) void {
+    pub fn run(self: *Thread, entry_point: u32) !void {
         // Build the entry point stack frame.  Aah.
         self.top_frame = 0;
         self.getTopFrame().* = .{
@@ -192,7 +192,22 @@ const Thread = struct {
             self.pc += @intCast(op.argLength());
             switch (op) {
                 .no_op => {},
-                .add => {},
+                .add => {
+                    const frame = self.getTopFrame();
+                    assert(frame.reg_len >= 2);
+                    const tos1 = &self.reg[frame.reg_base + frame.reg_len - 1];
+                    const tos2 = &self.reg[frame.reg_base + frame.reg_len - 2];
+                    if (tos1.@"error" != .ok or tos2.@"error" != .ok) {
+                        return error.ErrorValueInOperand;
+                    }
+                    // tos2.* = tos.* + tos2.*;
+                    tos2.value = .{ .int = tos2.value.int + tos1.value.int };
+                    // self.reg[frame.reg_base + frame.reg_len - 2] = .{
+                    //     .value = .{ .int = self.reg[frame.reg_base + frame.reg_len - 1].value.int +
+                    //         self.reg[frame.reg_base + frame.reg_len - 2].value.int },
+                    // };
+                    frame.reg_len -= 1;
+                },
                 .call_function => {},
                 .divide => {},
                 .jump => {},
@@ -202,7 +217,7 @@ const Thread = struct {
                 .load_index => {},
                 .load_int => {
                     const frame = self.getTopFrame();
-                    self.register_stacks[frame.*.reg_base + frame.*.reg_len] = .{
+                    self.reg[frame.reg_base + frame.reg_len] = .{
                         .value = .{ .int = argument.load_int },
                         .@"error" = .ok,
                         .optional = false,
@@ -230,7 +245,7 @@ const Thread = struct {
         var result: Thread = undefined;
         result.runtime = runtime;
         result.call_stack = try runtime.allocator.alloc(u8, options.frame_stack_size);
-        result.register_stacks =
+        result.reg =
             try runtime.allocator.alloc(InPlaceObject, options.register_stack_size);
 
         return result;
@@ -238,7 +253,7 @@ const Thread = struct {
 
     pub fn deinit(self: Thread) void {
         self.runtime.allocator.free(self.call_stack);
-        self.runtime.allocator.free(self.register_stacks);
+        self.runtime.allocator.free(self.reg);
     }
 
     const Options = struct {
@@ -261,9 +276,30 @@ test "load constants" {
 
     try runtime.loadBytecode(code);
 
-    runtime.run();
+    try runtime.run();
     try testing.expectEqual(
         666,
-        runtime.threads.getPtr(runtime.main_thread).?.register_stacks[0].value.int,
+        runtime.threads.getPtr(runtime.main_thread).?.reg[0].value.int,
+    );
+}
+
+test "add" {
+    const runtime = try Runtime.create(testing.allocator);
+    defer runtime.destroy();
+    const code = try bytecode.stringToBytecode(testing.allocator,
+        \\set_stack_size 0
+        \\load_int 5
+        \\load_int 10
+        \\add
+        \\halt
+    );
+    defer testing.allocator.free(code);
+
+    try runtime.loadBytecode(code);
+
+    try runtime.run();
+    try testing.expectEqual(
+        15,
+        runtime.threads.getPtr(runtime.main_thread).?.reg[0].value.int,
     );
 }
