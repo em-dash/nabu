@@ -15,43 +15,41 @@ const runtime = @import("runtime.zig");
 const ShortType = runtime.ShortType;
 
 pub const Argument = union(Opcode) {
-    add: void,
+    int_add: void,
     call_function: void,
     set_stack_size: u16,
-    divide: void,
+    int_divide: void,
     halt: void,
     jump: u32,
     jump_relative: i8,
     load_bool: bool,
     load_float: f32,
-    load_index: u32,
     load_int: i32,
     load_readonly: u32,
-    load_stack_local: u16,
-    multiply: void,
+    load_local: u16,
+    int_multiply: void,
     no_op: void,
-    store: u32,
-    subtract: void,
+    store_local: u32,
+    int_subtract: void,
 };
 
 pub const Opcode = enum(u8) {
-    add,
+    int_add,
     call_function,
     set_stack_size,
-    divide,
+    int_divide,
     halt,
     jump,
     jump_relative,
     load_bool,
     load_float,
-    load_index,
     load_int,
     load_readonly,
-    load_stack_local,
-    multiply,
+    load_local,
+    int_multiply,
     no_op,
-    store,
-    subtract,
+    store_local,
+    int_subtract,
 
     pub fn argType(self: Opcode) type {
         return std.meta.TagPayload(Argument, self);
@@ -92,7 +90,12 @@ pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
                     const little = mem.nativeToLittle(u16, int);
                     try code.appendSlice(mem.asBytes(&little));
                 },
-                .call_function, .jump, .load_index, .load_readonly, .load_stack_local, .store => {
+                .call_function,
+                .jump,
+                .load_readonly,
+                .load_local,
+                .store_local,
+                => {
                     const int = try std.fmt.parseInt(u32, arg.?, 0);
                     const little = mem.nativeToLittle(u32, int);
                     try code.appendSlice(mem.asBytes(&little));

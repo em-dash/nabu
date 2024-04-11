@@ -87,22 +87,22 @@ const Value = packed union {
     bool: bool,
     float: f32,
     int: i32,
-    // ref: u32,
+    ref: u32,
 };
 
-const InPlaceObject = packed struct {
-    comptime {
-        assert(@bitSizeOf(InPlaceObject) == 64);
-    }
+// const InPlaceObject = packed struct {
+//     comptime {
+//         assert(@bitSizeOf(InPlaceObject) == 64);
+//     }
 
-    value: Value,
-    @"error": Error,
-    optional: bool,
-    is_null: bool,
-    _padding0: u6,
-    type: ShortType,
-    _padding1: u5,
-};
+//     value: Value,
+//     @"error": Error,
+//     optional: bool,
+//     is_null: bool,
+//     _padding0: u6,
+//     type: ShortType,
+//     _padding1: u5,
+// };
 
 const Runtime = struct {
     allocator: Allocator = undefined,
@@ -157,7 +157,7 @@ const Frame = packed struct {
 
 const Thread = struct {
     call_stack: []u8,
-    reg: []InPlaceObject,
+    reg: []Value,
     top_frame: u32,
     runtime: *const Runtime,
     pc: u32,
@@ -167,6 +167,14 @@ const Thread = struct {
             Frame,
             self.call_stack[self.top_frame .. self.top_frame + @sizeOf(Frame)],
         ));
+    }
+
+    inline fn getArg(self: *Thread, comptime op: Opcode) op.argType() {
+        const argument_slice = self.runtime.bytecode.items[self.pc .. self.pc + op.argLength()];
+        const argument: op.argType() =
+            mem.littleToNative(op.argType(), mem.bytesToValue(op.argType(), argument_slice));
+        self.pc += @intCast(op.argLength());
+        return argument;
     }
 
     pub fn run(self: *Thread, entry_point: u32) !void {
@@ -181,59 +189,41 @@ const Thread = struct {
         main_loop: while (true) {
             const op: Opcode = @enumFromInt(self.runtime.bytecode.items[self.pc]);
             self.pc += 1;
-            const argument_slice = self.runtime.bytecode.items[self.pc .. self.pc + op.argLength()];
-            const argument: Argument = switch (op) {
-                inline else => |o| @unionInit(
-                    Argument,
-                    @tagName(o),
-                    mem.littleToNative(o.argType(), mem.bytesToValue(o.argType(), argument_slice)),
-                ),
-            };
-            self.pc += @intCast(op.argLength());
             switch (op) {
                 .no_op => {},
-                .add => {
+                .int_add => {
                     const frame = self.getTopFrame();
                     assert(frame.reg_len >= 2);
                     const tos1 = &self.reg[frame.reg_base + frame.reg_len - 1];
                     const tos2 = &self.reg[frame.reg_base + frame.reg_len - 2];
-                    if (tos1.@"error" != .ok or tos2.@"error" != .ok) {
-                        return error.ErrorValueInOperand;
-                    }
-                    // tos2.* = tos.* + tos2.*;
-                    tos2.value = .{ .int = tos2.value.int + tos1.value.int };
-                    // self.reg[frame.reg_base + frame.reg_len - 2] = .{
-                    //     .value = .{ .int = self.reg[frame.reg_base + frame.reg_len - 1].value.int +
-                    //         self.reg[frame.reg_base + frame.reg_len - 2].value.int },
-                    // };
+                    tos2.int += tos1.int;
                     frame.reg_len -= 1;
                 },
                 .call_function => {},
-                .divide => {},
+                .int_divide => {},
                 .jump => {},
                 .jump_relative => {},
                 .load_bool => {},
                 .load_float => {},
-                .load_index => {},
                 .load_int => {
                     const frame = self.getTopFrame();
-                    self.reg[frame.reg_base + frame.reg_len] = .{
-                        .value = .{ .int = argument.load_int },
-                        .@"error" = .ok,
-                        .optional = false,
-                        .is_null = undefined,
-                        ._padding0 = undefined,
-                        .type = .int,
-                        ._padding1 = undefined,
-                    };
+
+                    const arg = self.getArg(.load_int);
+                    self.reg[frame.reg_base + frame.reg_len].int = arg;
                     frame.*.reg_len += 1;
                 },
-                .load_readonly => {},
-                .multiply => {},
-                .set_stack_size => {},
-                .store => {},
-                .subtract => {},
-                .load_stack_local => {},
+                .load_readonly => {
+                    const arg = self.getArg(.set_stack_size);
+                    _ = arg; // autofix
+                },
+                .int_multiply => {},
+                .set_stack_size => {
+                    const arg = self.getArg(.set_stack_size);
+                    _ = arg; // autofix
+                },
+                .store_local => {},
+                .int_subtract => {},
+                .load_local => {},
                 .halt => {
                     break :main_loop;
                 },
@@ -246,7 +236,7 @@ const Thread = struct {
         result.runtime = runtime;
         result.call_stack = try runtime.allocator.alloc(u8, options.frame_stack_size);
         result.reg =
-            try runtime.allocator.alloc(InPlaceObject, options.register_stack_size);
+            try runtime.allocator.alloc(Value, options.register_stack_size);
 
         return result;
     }
@@ -259,7 +249,7 @@ const Thread = struct {
     const Options = struct {
         /// Stack size in bytes.  Default 1MB.
         frame_stack_size: usize = 1024 * 1024,
-        /// Register stack size in number of 8-byte items.
+        /// Register stack size in number of 4-byte items.
         register_stack_size: usize = 4096,
     };
 };
@@ -279,7 +269,7 @@ test "load constants" {
     try runtime.run();
     try testing.expectEqual(
         666,
-        runtime.threads.getPtr(runtime.main_thread).?.reg[0].value.int,
+        runtime.threads.getPtr(runtime.main_thread).?.reg[0].int,
     );
 }
 
@@ -290,7 +280,7 @@ test "add" {
         \\set_stack_size 0
         \\load_int 5
         \\load_int 10
-        \\add
+        \\int_add
         \\halt
     );
     defer testing.allocator.free(code);
@@ -300,6 +290,6 @@ test "add" {
     try runtime.run();
     try testing.expectEqual(
         15,
-        runtime.threads.getPtr(runtime.main_thread).?.reg[0].value.int,
+        runtime.threads.getPtr(runtime.main_thread).?.reg[0].int,
     );
 }
