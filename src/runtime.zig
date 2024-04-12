@@ -117,6 +117,7 @@ const Runtime = struct {
         }
         self.threads.deinit(self.allocator);
         self.bytecode.deinit(self.allocator);
+        self.object_table.deinit(self.allocator);
         self.allocator.destroy(self);
     }
 };
@@ -164,12 +165,12 @@ const Thread = struct {
 
         self.pc = entry_point;
         main_loop: while (true) {
+            const frame = self.getTopFrame();
             const op: Opcode = @enumFromInt(self.runtime.bytecode.items[self.pc]);
             self.pc += 1;
             switch (op) {
                 .no_op => {},
                 .int_add => {
-                    const frame = self.getTopFrame();
                     assert(frame.reg_len >= 2);
                     const tos1 = &self.reg[frame.reg_base + frame.reg_len - 1];
                     const tos2 = &self.reg[frame.reg_base + frame.reg_len - 2];
@@ -189,13 +190,11 @@ const Thread = struct {
                 .load_bool => {},
                 .load_float => {},
                 .load_int => {
-                    const frame = self.getTopFrame();
-
                     const arg = self.getArg(.load_int);
                     self.reg[frame.reg_base + frame.reg_len].int = arg;
                     frame.*.reg_len += 1;
                 },
-                .load_readonly => {
+                .load_ref => {
                     const arg = self.getArg(.set_stack_size);
                     _ = arg; // autofix
                 },
@@ -211,9 +210,18 @@ const Thread = struct {
                     break :main_loop;
                 },
                 .call_builtin => {
+                    std.debug.print("pog\n", .{});
                     const arg = self.getArg(.call_builtin);
                     switch (arg.id) {
-                        .string_puts => {},
+                        .string_puts => {
+                            assert(arg.count == 1);
+
+                            const ref = self.reg[frame.reg_base + frame.reg_len - 1].ref;
+                            const head = self.runtime.object_table.getPtr(ref).?.*;
+                            const string: *String = @alignCast(@fieldParentPtr("header", head));
+
+                            try std.io.getStdOut().writer().print("{s}\n", .{string.value});
+                        },
                     }
                 },
             }
@@ -283,21 +291,25 @@ test "add" {
     );
 }
 
-// test "puts" {
-//     const runtime = try Runtime.create(testing.allocator);
-//     defer runtime.destroy();
-//     const code = try bytecode.stringToBytecode(testing.allocator,
-//         \\set_stack_size 0
-//         \\load_int 666
-//         \\halt
-//     );
-//     defer testing.allocator.free(code);
+test "puts" {
+    const runtime = try Runtime.create(testing.allocator);
+    defer runtime.destroy();
+    const message = "小熊貓";
+    var string: String = .{ .value = try testing.allocator.alloc(u8, message.len) };
+    defer testing.allocator.free(string.value);
+    mem.copyForwards(u8, string.value, message);
+    const id = try runtime.object_table.put(runtime.allocator, &string.header);
+    _ = id; // autofix
+    // HACK THIS just assumes the id will be 0, which it will, but it's still bad
+    const code = try bytecode.assembleBytecode(testing.allocator,
+        \\set_stack_size 0
+        \\load_ref 0
+        \\call_builtin string_puts 1
+        \\halt
+    );
+    defer testing.allocator.free(code);
 
-//     try runtime.loadBytecode(code);
+    try runtime.loadBytecode(code);
 
-//     try runtime.run();
-//     try testing.expectEqual(
-//         666,
-//         runtime.threads.getPtr(runtime.main_thread).?.reg[0].int,
-//     );
-// }
+    try runtime.run();
+}

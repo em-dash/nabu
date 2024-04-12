@@ -22,21 +22,21 @@ pub const Builtin = enum(u16) {
 
 pub const BuiltinArgument = packed struct {
     id: Builtin,
-    arg_number: u8,
+    count: u8,
 };
 
 pub const Argument = union(Opcode) {
+    halt: void,
     int_add: void,
     call_function: u8,
     set_stack_size: u16,
     int_divide: void,
-    halt: void,
     jump: u32,
     jump_relative: i8,
     load_bool: bool,
     load_float: f32,
     load_int: i32,
-    load_readonly: u32,
+    load_ref: u32,
     load_local: u16,
     int_multiply: void,
     no_op: void,
@@ -46,17 +46,17 @@ pub const Argument = union(Opcode) {
 };
 
 pub const Opcode = enum(u8) {
+    halt = 0,
     int_add,
     call_function,
     set_stack_size,
     int_divide,
-    halt,
     jump,
     jump_relative,
     load_bool,
     load_float,
     load_int,
-    load_readonly,
+    load_ref,
     load_local,
     int_multiply,
     no_op,
@@ -105,7 +105,7 @@ pub fn assembleBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
                 },
                 .call_function,
                 .jump,
-                .load_readonly,
+                .load_ref,
                 .load_local,
                 .store_local,
                 => {
@@ -123,13 +123,15 @@ pub fn assembleBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
                 },
                 .call_builtin => {
                     // builtin name
-                    try code.append(@intFromEnum(std.meta.stringToEnum(Builtin, arg)));
+                    const builtin_int = @intFromEnum(std.meta.stringToEnum(Builtin, arg.?).?);
+                    const builtin_little = mem.nativeToLittle(u16, builtin_int);
+                    try code.appendSlice(mem.asBytes(&builtin_little));
                     // number of args
                     const arg2 = token_iter.next();
                     if (arg2 == null) return error.InvalidBytecode;
-                    const int = try std.fmt.parseInt(i8, arg2.?, 0);
-                    const little = mem.nativeToLittle(i8, int);
-                    try code.appendSlice(mem.asBytes(&little));
+                    const args_int = try std.fmt.parseInt(i8, arg2.?, 0);
+                    const args_little = mem.nativeToLittle(i8, args_int);
+                    try code.appendSlice(mem.asBytes(&args_little));
                 },
                 .int_add,
                 .int_divide,
