@@ -12,6 +12,7 @@ const bytecode = @import("bytecode.zig");
 const Module = bytecode.Module;
 const Opcode = bytecode.Opcode;
 const Argument = bytecode.Argument;
+const Builtin = bytecode.Builtin;
 
 const types = @import("types.zig");
 const IdSet = types.IdSet;
@@ -21,17 +22,7 @@ pub const Error = enum(u16) {
     _,
 };
 
-pub const ShortType = enum(u3) {
-    bool,
-    int,
-    float,
-    string,
-    array,
-    map,
-    reference,
-};
-
-pub const FullType = enum(u32) {
+pub const Type = enum(u32) {
     bool,
     int,
     float,
@@ -42,7 +33,7 @@ pub const FullType = enum(u32) {
     _,
 };
 
-pub const UserType = enum {
+pub const CompoundType = enum {
     @"struct",
     @"enum",
     @"union",
@@ -50,7 +41,7 @@ pub const UserType = enum {
 };
 
 pub const ObjectHeader = struct {
-    type: FullType,
+    type: Type,
 };
 
 // pub const Bool = struct {
@@ -68,10 +59,10 @@ pub const ObjectHeader = struct {
 //     value: f32,
 // };
 
-// pub const String = struct {
-//     header: ObjectHeader,
-//     value: ArrayListUnmanaged(u8),
-// };
+pub const String = struct {
+    header: ObjectHeader = .{ .type = .string },
+    value: []u8 = &[_]u8{},
+};
 
 // pub const Array = struct {
 //     header: ObjectHeader,
@@ -90,29 +81,15 @@ const Value = packed union {
     ref: u32,
 };
 
-// const InPlaceObject = packed struct {
-//     comptime {
-//         assert(@bitSizeOf(InPlaceObject) == 64);
-//     }
-
-//     value: Value,
-//     @"error": Error,
-//     optional: bool,
-//     is_null: bool,
-//     _padding0: u6,
-//     type: ShortType,
-//     _padding1: u5,
-// };
-
 const Runtime = struct {
     allocator: Allocator = undefined,
     // bytecode: []u8 = &.{},
     bytecode: ArrayListUnmanaged(u8) = .{},
     /// Table of u32 locations of the start of functions.
     function_table: IdSet(u32) = IdSet(u32).init(),
-    readonly_object_table: IdSet(ObjectHeader) = IdSet(ObjectHeader).init(),
+    object_table: IdSet(*ObjectHeader) = IdSet(*ObjectHeader).init(),
     name_table: IdSet([]u8) = IdSet([]u8).init(),
-    type_table: IdSet(FullType) = IdSet(FullType).init(),
+    type_table: IdSet(Type) = IdSet(Type).init(),
     threads: IdSet(Thread) = IdSet(Thread).init(),
     main_thread: u32 = undefined,
 
@@ -178,7 +155,7 @@ const Thread = struct {
     }
 
     pub fn run(self: *Thread, entry_point: u32) !void {
-        // Build the entry point stack frame.  Aah.
+        // Build the first stack frame.
         self.top_frame = 0;
         self.getTopFrame().* = .{
             .reg_base = 0,
@@ -201,8 +178,14 @@ const Thread = struct {
                 },
                 .call_function => {},
                 .int_divide => {},
-                .jump => {},
-                .jump_relative => {},
+                .jump => {
+                    const arg = self.getArg(.jump);
+                    _ = arg; // autofix
+                },
+                .jump_relative => {
+                    const arg = self.getArg(.jump_relative);
+                    _ = arg; // autofix
+                },
                 .load_bool => {},
                 .load_float => {},
                 .load_int => {
@@ -226,6 +209,12 @@ const Thread = struct {
                 .load_local => {},
                 .halt => {
                     break :main_loop;
+                },
+                .call_builtin => {
+                    const arg = self.getArg(.call_builtin);
+                    switch (arg.id) {
+                        .string_puts => {},
+                    }
                 },
             }
         }
@@ -257,7 +246,7 @@ const Thread = struct {
 test "load constants" {
     const runtime = try Runtime.create(testing.allocator);
     defer runtime.destroy();
-    const code = try bytecode.stringToBytecode(testing.allocator,
+    const code = try bytecode.assembleBytecode(testing.allocator,
         \\set_stack_size 0
         \\load_int 666
         \\halt
@@ -276,7 +265,7 @@ test "load constants" {
 test "add" {
     const runtime = try Runtime.create(testing.allocator);
     defer runtime.destroy();
-    const code = try bytecode.stringToBytecode(testing.allocator,
+    const code = try bytecode.assembleBytecode(testing.allocator,
         \\set_stack_size 0
         \\load_int 5
         \\load_int 10
@@ -293,3 +282,22 @@ test "add" {
         runtime.threads.getPtr(runtime.main_thread).?.reg[0].int,
     );
 }
+
+// test "puts" {
+//     const runtime = try Runtime.create(testing.allocator);
+//     defer runtime.destroy();
+//     const code = try bytecode.stringToBytecode(testing.allocator,
+//         \\set_stack_size 0
+//         \\load_int 666
+//         \\halt
+//     );
+//     defer testing.allocator.free(code);
+
+//     try runtime.loadBytecode(code);
+
+//     try runtime.run();
+//     try testing.expectEqual(
+//         666,
+//         runtime.threads.getPtr(runtime.main_thread).?.reg[0].int,
+//     );
+// }

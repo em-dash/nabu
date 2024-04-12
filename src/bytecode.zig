@@ -14,9 +14,20 @@ const fmt = std.fmt;
 const runtime = @import("runtime.zig");
 const ShortType = runtime.ShortType;
 
+/// List of builtin functions
+pub const Builtin = enum(u16) {
+    // Builtin type operations
+    string_puts,
+};
+
+pub const BuiltinArgument = packed struct {
+    id: Builtin,
+    arg_number: u8,
+};
+
 pub const Argument = union(Opcode) {
     int_add: void,
-    call_function: void,
+    call_function: u8,
     set_stack_size: u16,
     int_divide: void,
     halt: void,
@@ -31,6 +42,7 @@ pub const Argument = union(Opcode) {
     no_op: void,
     store_local: u32,
     int_subtract: void,
+    call_builtin: BuiltinArgument,
 };
 
 pub const Opcode = enum(u8) {
@@ -50,6 +62,7 @@ pub const Opcode = enum(u8) {
     no_op,
     store_local,
     int_subtract,
+    call_builtin,
 
     pub fn argType(self: Opcode) type {
         return std.meta.TagPayload(Argument, self);
@@ -64,7 +77,7 @@ pub const Opcode = enum(u8) {
 };
 
 /// Caller owns returned memory.
-pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
+pub fn assembleBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
     var token_iter = mem.tokenizeAny(u8, string, " \n\r");
     var code = ArrayList(u8).init(allocator);
     errdefer code.deinit();
@@ -108,7 +121,23 @@ pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
                 .load_bool, .load_float => {
                     std.debug.panic("not implemented", .{});
                 },
-                else => unreachable,
+                .call_builtin => {
+                    // builtin name
+                    try code.append(@intFromEnum(std.meta.stringToEnum(Builtin, arg)));
+                    // number of args
+                    const arg2 = token_iter.next();
+                    if (arg2 == null) return error.InvalidBytecode;
+                    const int = try std.fmt.parseInt(i8, arg2.?, 0);
+                    const little = mem.nativeToLittle(i8, int);
+                    try code.appendSlice(mem.asBytes(&little));
+                },
+                .int_add,
+                .int_divide,
+                .int_multiply,
+                .halt,
+                .no_op,
+                .int_subtract,
+                => unreachable,
             }
         }
     }
@@ -118,7 +147,7 @@ pub fn stringToBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
 
 test "simple bytecode" {
     const string = "no_op load_int 0x1234 no_op no_op";
-    const actual = try stringToBytecode(testing.allocator, string);
+    const actual = try assembleBytecode(testing.allocator, string);
     defer testing.allocator.free(actual);
     const expected = [_]u8{
         @intFromEnum(Opcode.no_op),
@@ -134,7 +163,7 @@ test "simple bytecode" {
 }
 
 /// Caller owns returned slice. Asserts that `code` is valid bytecode.
-pub fn bytecodeToString(allocator: Allocator, code: []const u8) ![]const u8 {
+pub fn disassembleBytecode(allocator: Allocator, code: []const u8) ![]const u8 {
     var string = ArrayList(u8).init(allocator);
 
     var i: usize = 0;

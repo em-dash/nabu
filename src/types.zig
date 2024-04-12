@@ -6,12 +6,6 @@ const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const AutoArrayHashMapUnmanaged = std.AutoArrayHashMapUnmanaged;
 
-// const Set = struct {
-//     allocator: Allocator,
-//     ids: ArrayListUnmanaged,
-//     data: ArrayListUnmanaged,
-// };
-
 pub fn IdSet(T: type) type {
     return struct {
         map: AutoArrayHashMapUnmanaged(u32, T),
