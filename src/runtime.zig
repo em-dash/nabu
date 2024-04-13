@@ -158,6 +158,24 @@ const Thread = struct {
         return argument;
     }
 
+    inline fn pushToStack(self: *Thread, value: Value) void {
+        const frame = self.getTopFrame();
+        self.reg[frame.reg_base + frame.reg_len] = value;
+        frame.reg_len += 1;
+    }
+
+    inline fn popFromStack(self: *Thread) Value {
+        const frame = self.getTopFrame();
+        const result = self.reg[frame.reg_base + frame.reg_len - 1];
+        frame.reg_len -= 1;
+        return result;
+    }
+
+    inline fn getTosPointer(self: *Thread) *Value {
+        const frame = self.getTopFrame();
+        return &self.reg[frame.reg_base + frame.reg_len - 1];
+    }
+
     pub fn run(self: *Thread, entry_point: u32) !void {
         // Build the first stack frame.
         self.top_frame = 0;
@@ -177,10 +195,8 @@ const Thread = struct {
                 .no_op => {},
                 .int_add => {
                     assert(frame.reg_len >= 2);
-                    const tos1 = &self.reg[frame.reg_base + frame.reg_len - 1];
-                    const tos2 = &self.reg[frame.reg_base + frame.reg_len - 2];
-                    tos2.int += tos1.int;
-                    frame.reg_len -= 1;
+                    const int = self.popFromStack().int;
+                    self.getTosPointer().int += int;
                 },
                 .call_function => {},
                 .int_divide => {},
@@ -201,8 +217,7 @@ const Thread = struct {
                 },
                 .load_ref => {
                     const arg = self.getArg(.load_ref);
-                    self.reg[frame.reg_base + frame.reg_len].ref = arg;
-                    frame.reg_len += 1;
+                    self.pushToStack(.{ .ref = arg });
                 },
                 .int_multiply => {},
                 .set_stack_size => {
@@ -222,7 +237,7 @@ const Thread = struct {
                         .string_puts => {
                             assert(arg.count == 1);
 
-                            const ref = self.reg[frame.reg_base + frame.reg_len - 1].ref;
+                            const ref = self.popFromStack().ref;
                             const header = self.runtime.object_table.getPtr(ref).?.*;
                             const string: *String = @alignCast(@fieldParentPtr("header", header));
 
