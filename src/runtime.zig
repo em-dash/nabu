@@ -210,7 +210,6 @@ const Thread = struct {
                     break :main_loop;
                 },
                 .call_builtin => {
-                    std.debug.print("pog\n", .{});
                     const arg = self.getArg(.call_builtin);
                     switch (arg.id) {
                         .string_puts => {
@@ -298,9 +297,9 @@ test "puts" {
     var string: String = .{ .value = try testing.allocator.alloc(u8, message.len) };
     defer testing.allocator.free(string.value);
     mem.copyForwards(u8, string.value, message);
-    const id = try runtime.object_table.put(runtime.allocator, &string.header);
-    _ = id; // autofix
-    // HACK THIS just assumes the id will be 0, which it will, but it's still bad
+    // HACK THIS just assumes the id will be 0, which it will, but it's still bad.  assert to catch
+    // if it isn't.
+    assert(try runtime.object_table.put(runtime.allocator, &string.header) == 0);
     const code = try bytecode.assembleBytecode(testing.allocator,
         \\set_stack_size 0
         \\load_ref 0
@@ -310,6 +309,5 @@ test "puts" {
     defer testing.allocator.free(code);
 
     try runtime.loadBytecode(code);
-
     try runtime.run();
 }

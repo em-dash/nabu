@@ -169,14 +169,20 @@ pub fn disassembleBytecode(allocator: Allocator, code: []const u8) ![]const u8 {
     var string = ArrayList(u8).init(allocator);
 
     var i: usize = 0;
-    while (i < code.len) : (i += 1) {
+    while (i < code.len) {
         const opcode: Opcode = @enumFromInt(code[i]);
         try string.appendSlice(@tagName(opcode));
-        const arg_len = opcode.argLength();
-        if (arg_len > 0) {
-            const arg = mem.bytesAsValue(u32, code[i .. i + arg_len]);
-            for (0..30 - @tagName(opcode).len) |_| try string.append(' ');
-            try string.writer().print("{x.8}", .{arg});
+        try string.append(' ');
+        i += 1;
+
+        if (opcode.argLength() > 0) {
+            switch (opcode) {
+                inline else => |o| {
+                    const arg = mem.bytesAsValue(o.argType(), code[i .. i + o.argLength()]);
+                    try string.writer().print("{}", .{arg.*});
+                    i += o.argLength();
+                },
+            }
         }
         try string.append('\n');
     }

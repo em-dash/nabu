@@ -42,7 +42,8 @@ pub fn build(b: *std.Build) void {
     );
     clean_step.dependOn(&clean.step);
 
-    const llvm = !(b.host.result.cpu.arch == .x86_64);
+    // const llvm = !(b.host.result.cpu.arch == .x86_64);
+    const llvm = true;
 
     const exe = b.addExecutable(.{
         .name = "nabu",
