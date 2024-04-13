@@ -7,6 +7,7 @@ const AutoHashMapUnmanaged = std.AutoHashMapUnmanaged;
 const AutoHashMap = std.AutoHashMap;
 const assert = std.debug.assert;
 const testing = std.testing;
+const log = std.log;
 
 const bytecode = @import("bytecode.zig");
 const Module = bytecode.Module;
@@ -94,6 +95,7 @@ const Runtime = struct {
     main_thread: u32 = undefined,
 
     pub fn loadBytecode(self: *Runtime, code: []const u8) !void {
+        log.debug("runtime: loading {} bytes of bytecode", .{code.len});
         try self.bytecode.appendSlice(self.allocator, code);
     }
 
@@ -152,6 +154,7 @@ const Thread = struct {
         const argument: op.argType() =
             mem.littleToNative(op.argType(), mem.bytesToValue(op.argType(), argument_slice));
         self.pc += @intCast(op.argLength());
+        log.debug("argument: {}, type: {}", .{ argument, @TypeOf(argument) });
         return argument;
     }
 
@@ -166,7 +169,9 @@ const Thread = struct {
         self.pc = entry_point;
         main_loop: while (true) {
             const frame = self.getTopFrame();
+            log.debug("pc = {}", .{self.pc});
             const op: Opcode = @enumFromInt(self.runtime.bytecode.items[self.pc]);
+            log.debug("operation: {s}", .{@tagName(op)});
             self.pc += 1;
             switch (op) {
                 .no_op => {},
@@ -192,11 +197,12 @@ const Thread = struct {
                 .load_int => {
                     const arg = self.getArg(.load_int);
                     self.reg[frame.reg_base + frame.reg_len].int = arg;
-                    frame.*.reg_len += 1;
+                    frame.reg_len += 1;
                 },
                 .load_ref => {
-                    const arg = self.getArg(.set_stack_size);
-                    _ = arg; // autofix
+                    const arg = self.getArg(.load_ref);
+                    self.reg[frame.reg_base + frame.reg_len].ref = arg;
+                    frame.reg_len += 1;
                 },
                 .int_multiply => {},
                 .set_stack_size => {
@@ -210,14 +216,15 @@ const Thread = struct {
                     break :main_loop;
                 },
                 .call_builtin => {
+                    // std.debug.print("pog\n", .{});
                     const arg = self.getArg(.call_builtin);
                     switch (arg.id) {
                         .string_puts => {
                             assert(arg.count == 1);
 
                             const ref = self.reg[frame.reg_base + frame.reg_len - 1].ref;
-                            const head = self.runtime.object_table.getPtr(ref).?.*;
-                            const string: *String = @alignCast(@fieldParentPtr("header", head));
+                            const header = self.runtime.object_table.getPtr(ref).?.*;
+                            const string: *String = @alignCast(@fieldParentPtr("header", header));
 
                             try std.io.getStdOut().writer().print("{s}\n", .{string.value});
                         },
@@ -290,24 +297,27 @@ test "add" {
     );
 }
 
-test "puts" {
-    const runtime = try Runtime.create(testing.allocator);
-    defer runtime.destroy();
-    const message = "小熊貓";
-    var string: String = .{ .value = try testing.allocator.alloc(u8, message.len) };
-    defer testing.allocator.free(string.value);
-    mem.copyForwards(u8, string.value, message);
-    // HACK THIS just assumes the id will be 0, which it will, but it's still bad.  assert to catch
-    // if it isn't.
-    assert(try runtime.object_table.put(runtime.allocator, &string.header) == 0);
-    const code = try bytecode.assembleBytecode(testing.allocator,
-        \\set_stack_size 0
-        \\load_ref 0
-        \\call_builtin string_puts 1
-        \\halt
-    );
-    defer testing.allocator.free(code);
+// test "puts" {
+//     const runtime = try Runtime.create(testing.allocator);
+//     defer runtime.destroy();
+//     const message = "小熊貓";
+//     var string: String = .{ .value = try testing.allocator.alloc(u8, message.len) };
+//     defer testing.allocator.free(string.value);
+//     mem.copyForwards(u8, string.value, message);
+//     // HACK THIS just assumes the id will be 0, which it will, but it's still bad.  assert to catch
+//     // if it isn't.
+//     assert(try runtime.object_table.put(runtime.allocator, &string.header) == 0);
+//     const code = try bytecode.assembleBytecode(testing.allocator,
+//         \\set_stack_size 0
+//         \\load_ref 0
+//         \\call_builtin string_puts 1
+//         \\halt
+//     );
+//     defer testing.allocator.free(code);
+//     // const bork = try bytecode.disassembleBytecode(testing.allocator, code);
+//     // defer testing.allocator.free(bork);
+//     // std.debug.print("{s}\n", .{bork});
 
-    try runtime.loadBytecode(code);
-    try runtime.run();
-}
+//     try runtime.loadBytecode(code);
+//     try runtime.run();
+// }

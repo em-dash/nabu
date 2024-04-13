@@ -20,29 +20,29 @@ pub const Builtin = enum(u16) {
     string_puts,
 };
 
-pub const BuiltinArgument = packed struct {
-    id: Builtin,
-    count: u8,
+pub const BuiltinArgument = extern struct {
+    id: Builtin align(1),
+    count: u8 align(1),
 };
 
 pub const Argument = union(Opcode) {
     halt: void,
     int_add: void,
-    call_function: u8,
-    set_stack_size: u16,
+    call_function: u8 align(1),
+    set_stack_size: u16 align(1),
     int_divide: void,
-    jump: u32,
-    jump_relative: i8,
-    load_bool: bool,
-    load_float: f32,
-    load_int: i32,
-    load_ref: u32,
-    load_local: u16,
+    jump: u32 align(1),
+    jump_relative: i8 align(1),
+    load_bool: bool align(1),
+    load_float: f32 align(1),
+    load_int: i32 align(1),
+    load_ref: u32 align(1),
+    load_local: u16 align(1),
     int_multiply: void,
-    no_op: void,
-    store_local: u32,
+    no_op: void align(1),
+    store_local: u32 align(1),
     int_subtract: void,
-    call_builtin: BuiltinArgument,
+    call_builtin: BuiltinArgument align(1),
 };
 
 pub const Opcode = enum(u8) {
@@ -69,18 +69,31 @@ pub const Opcode = enum(u8) {
     }
 
     pub fn argLength(self: Opcode) usize {
-        // return switch ()@sizeOf(std.meta.TagPayload(Argument, self));
         return switch (self) {
-            inline else => |s| @sizeOf(std.meta.TagPayload(Argument, s)),
+            inline else => |s| @bitSizeOf(std.meta.TagPayload(Argument, s)) / 8,
         };
     }
 };
+
+comptime {
+    for (@typeInfo(Argument).Union.fields) |i| {
+        if (@typeInfo(i.type) == .Struct) {
+            var len = 0;
+            for (@typeInfo(i.type).Struct.fields) |j| len += @bitSizeOf(j.type);
+            len /= 8;
+
+            if (len != @sizeOf(i.type)) @compileError("Argument of opcode " ++ i.name ++
+                " has an inconsistent size.\nUse an extern struct with align(1) on every field.");
+        }
+    }
+}
 
 /// Caller owns returned memory.
 pub fn assembleBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
     var token_iter = mem.tokenizeAny(u8, string, " \n\r");
     var code = ArrayList(u8).init(allocator);
     errdefer code.deinit();
+
     while (true) {
         // find operation
         const op = if (token_iter.next()) |op_string|
@@ -129,8 +142,8 @@ pub fn assembleBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
                     // number of args
                     const arg2 = token_iter.next();
                     if (arg2 == null) return error.InvalidBytecode;
-                    const args_int = try std.fmt.parseInt(i8, arg2.?, 0);
-                    const args_little = mem.nativeToLittle(i8, args_int);
+                    const args_int = try std.fmt.parseInt(u8, arg2.?, 0);
+                    const args_little = mem.nativeToLittle(u8, args_int);
                     try code.appendSlice(mem.asBytes(&args_little));
                 },
                 .int_add,
@@ -147,8 +160,8 @@ pub fn assembleBytecode(allocator: Allocator, string: []const u8) ![]const u8 {
     return try code.toOwnedSlice();
 }
 
-test "simple bytecode" {
-    const string = "no_op load_int 0x1234 no_op no_op";
+test "assemble bytecode" {
+    const string = "no_op load_int 0x1234 no_op call_builtin string_puts 1 halt";
     const actual = try assembleBytecode(testing.allocator, string);
     defer testing.allocator.free(actual);
     const expected = [_]u8{
@@ -159,20 +172,25 @@ test "simple bytecode" {
         0x00,
         0x00,
         @intFromEnum(Opcode.no_op),
-        @intFromEnum(Opcode.no_op),
+        @intFromEnum(Opcode.call_builtin),
+        0x00,
+        0x00,
+        0x01,
+        @intFromEnum(Opcode.halt),
     };
     try testing.expectEqualSlices(u8, &expected, actual);
 }
 
-/// Caller owns returned slice. Asserts that `code` is valid bytecode.
+/// Caller owns returned slice.
 pub fn disassembleBytecode(allocator: Allocator, code: []const u8) ![]const u8 {
     var string = ArrayList(u8).init(allocator);
 
     var i: usize = 0;
     while (i < code.len) {
+        try string.writer().print("{}\t", .{i});
         const opcode: Opcode = @enumFromInt(code[i]);
         try string.appendSlice(@tagName(opcode));
-        try string.append(' ');
+        try string.appendSlice("\t\t");
         i += 1;
 
         if (opcode.argLength() > 0) {
