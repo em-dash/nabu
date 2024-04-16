@@ -62,7 +62,7 @@ fn scanTokensInScope(comptime needle: []const Token.Tag, haystack: []const Token
 //     std.debug.panic("mismatched parentheses", .{});
 // }
 
-const ScopedIdentifier = struct {
+pub const ScopedIdentifier = struct {
     identifiers: []*Token,
 
     fn parse(allocator: Allocator, tokens: []Token) ParseError!ScopedIdentifier {
@@ -81,7 +81,7 @@ const ScopedIdentifier = struct {
     }
 };
 
-const TypedIdentifier = struct {
+pub const TypedIdentifier = struct {
     identifier: *Token,
     type: ScopedIdentifier,
 };
@@ -239,19 +239,19 @@ pub const Expression = union(enum) {
     }
 };
 
-const Assignment = struct {
+pub const Assignment = struct {
     lhs: *Token, // identifier
     rhs: *Expression,
 };
 
-const FunctionDeclaration = struct {
+pub const FunctionDeclaration = struct {
     identifier: *Token,
     arguments: []TypedIdentifier,
     return_type: *Token,
     block: *Block,
 };
 
-const Statement = union(enum) {
+pub const Statement = union(enum) {
     assignment: Assignment,
     expression: *Expression,
     declaration: Declaration,
@@ -300,7 +300,7 @@ const Statement = union(enum) {
     }
 };
 
-const Block = struct {
+pub const Block = struct {
     statements: []*Statement,
 
     /// `tokens` should be the stuff within the braces.
