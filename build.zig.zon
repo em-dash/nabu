@@ -5,7 +5,7 @@
     .version = "0.0.0",
 
     // Selected for ziglyph
-    .minimum_zig_version = "0.12.0-dev.2036+fc79b22a9",
+    .minimum_zig_version = "0.12.0",
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
