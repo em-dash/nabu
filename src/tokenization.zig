@@ -24,16 +24,23 @@ pub const Token = struct {
         r_brace,
         comma,
         plus,
+        plus_equals,
         minus,
+        minus_equals,
         forward_slash,
+        forward_slash_equals,
         asterisk,
-        single_equals,
+        asterisk_equals,
+        equals,
         double_equals,
         keyword_if,
         keyword_while,
         keyword_const,
         keyword_var,
         keyword_fn,
+        keyword_and,
+        keyword_or,
+        keyword_xor,
         colon,
         dot,
     };
@@ -68,6 +75,9 @@ pub const Tokenizer = struct {
         integer_literal,
         zero,
         equals,
+        plus,
+        minus,
+        asterisk,
     };
 
     pub fn init(allocator: mem.Allocator, source: []const u8) !Tokenizer {
@@ -285,21 +295,9 @@ pub const Tokenizer = struct {
                     },
                     '"' => state = .string_literal,
                     '/' => state = .forward_slash,
-                    '+' => {
-                        result.tag = .plus;
-                        result.end = self.iterator.i;
-                        break :loop;
-                    },
-                    '-' => {
-                        result.tag = .minus;
-                        result.end = self.iterator.i;
-                        break :loop;
-                    },
-                    '*' => {
-                        result.tag = .asterisk;
-                        result.end = self.iterator.i;
-                        break :loop;
-                    },
+                    '+' => state = .plus,
+                    '-' => state = .minus,
+                    '*' => state = .asterisk,
                     ',' => {
                         result.tag = .comma;
                         result.end = self.iterator.i;
@@ -320,6 +318,45 @@ pub const Tokenizer = struct {
                         );
                     },
                 } else return null,
+                .plus => if (maybe_cp) |cp| switch (cp) {
+                    '=' => {
+                        result.tag = .plus_equals;
+                        result.end = self.iterator.i;
+                        break :loop;
+                    },
+                    else => {
+                        self.iterator.i = prev_index;
+                        result.end = self.iterator.i;
+                        result.tag = .plus;
+                        break :loop;
+                    },
+                },
+                .minus => if (maybe_cp) |cp| switch (cp) {
+                    '=' => {
+                        result.tag = .minus_equals;
+                        result.end = self.iterator.i;
+                        break :loop;
+                    },
+                    else => {
+                        self.iterator.i = prev_index;
+                        result.end = self.iterator.i;
+                        result.tag = .minus;
+                        break :loop;
+                    },
+                },
+                .asterisk => if (maybe_cp) |cp| switch (cp) {
+                    '=' => {
+                        result.tag = .asterisk_equals;
+                        result.end = self.iterator.i;
+                        break :loop;
+                    },
+                    else => {
+                        self.iterator.i = prev_index;
+                        result.end = self.iterator.i;
+                        result.tag = .asterisk;
+                        break :loop;
+                    },
+                },
                 .equals => if (maybe_cp) |cp| switch (cp) {
                     '=' => {
                         result.tag = .double_equals;
@@ -328,12 +365,12 @@ pub const Tokenizer = struct {
                     },
                     else => {
                         self.iterator.i = prev_index;
-                        result.tag = .single_equals;
+                        result.tag = .equals;
                         result.end = self.iterator.i;
                         break :loop;
                     },
                 } else {
-                    result.tag = .single_equals;
+                    result.tag = .equals;
                     result.end = self.iterator.i;
                     break :loop;
                 },
@@ -351,6 +388,11 @@ pub const Tokenizer = struct {
                     break :loop;
                 },
                 .forward_slash => if (maybe_cp) |cp| switch (cp) {
+                    '=' => {
+                        result.tag = .forward_slash_equals;
+                        result.end = self.iterator.i;
+                        break :loop;
+                    },
                     '/' => state = .comment,
                     else => {
                         self.iterator.i = prev_index;
@@ -569,7 +611,7 @@ test "declaration with type" {
         .{ .tag = .identifier, .start = 0, .end = 4 },
         .{ .tag = .colon, .start = 4, .end = 5 },
         .{ .tag = .identifier, .start = 6, .end = 13 },
-        .{ .tag = .single_equals, .start = 14, .end = 15 },
+        .{ .tag = .equals, .start = 14, .end = 15 },
         .{ .tag = .integer_literal, .start = 16, .end = 19 },
         .{ .tag = .semicolon, .start = 19, .end = 20 },
     };
@@ -582,7 +624,7 @@ test "assignment" {
     ;
     const expected = [_]Token{
         .{ .tag = .identifier, .start = 0, .end = 4 },
-        .{ .tag = .single_equals, .start = 5, .end = 6 },
+        .{ .tag = .equals, .start = 5, .end = 6 },
         .{ .tag = .integer_literal, .start = 7, .end = 10 },
         .{ .tag = .semicolon, .start = 10, .end = 11 },
     };
@@ -595,7 +637,7 @@ test "unicode identifiers" {
     ;
     const expected = [_]Token{
         .{ .tag = .identifier, .start = 0, .end = 3 },
-        .{ .tag = .single_equals, .start = 4, .end = 5 },
+        .{ .tag = .equals, .start = 4, .end = 5 },
         .{ .tag = .identifier, .start = 6, .end = 9 },
         .{ .tag = .dot, .start = 9, .end = 10 },
         .{ .tag = .identifier, .start = 10, .end = 13 },
@@ -615,7 +657,7 @@ test "dot operator assignment" {
         .{ .tag = .identifier, .start = 0, .end = 4 },
         .{ .tag = .dot, .start = 4, .end = 5 },
         .{ .tag = .identifier, .start = 5, .end = 13 },
-        .{ .tag = .single_equals, .start = 14, .end = 15 },
+        .{ .tag = .equals, .start = 14, .end = 15 },
         .{ .tag = .integer_literal, .start = 16, .end = 20 },
         .{ .tag = .semicolon, .start = 20, .end = 21 },
     };
@@ -712,6 +754,19 @@ test "negative integer literal" {
     const expected = [_]Token{
         .{ .tag = .minus, .start = 0, .end = 1 },
         .{ .tag = .integer_literal, .start = 1, .end = 6 },
+    };
+    try expectTokens(&expected, source);
+}
+
+test "equals operators" {
+    const source =
+        \\+= -= *= /=
+    ;
+    const expected = [_]Token{
+        .{ .tag = .plus_equals, .start = 0, .end = 2 },
+        .{ .tag = .minus_equals, .start = 3, .end = 5 },
+        .{ .tag = .asterisk_equals, .start = 6, .end = 8 },
+        .{ .tag = .forward_slash_equals, .start = 9, .end = 11 },
     };
     try expectTokens(&expected, source);
 }

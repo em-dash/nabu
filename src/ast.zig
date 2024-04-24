@@ -263,7 +263,7 @@ pub const Statement = union(enum) {
         if (tokens[tokens.len - 1].tag == .semicolon) {
             // Assignment and declaration
             // If there's an `=`, this is an assignment or a declaration, otherwise move on
-            const maybe_index = try scanTokensInScope(&[_]Token.Tag{.single_equals}, tokens);
+            const maybe_index = try scanTokensInScope(&[_]Token.Tag{.equals}, tokens);
             if (maybe_index) |index| {
                 // Check if this is a declaration
                 if (tokens[0].tag == .keyword_const or tokens[0].tag == .keyword_var) {
