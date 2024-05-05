@@ -303,7 +303,7 @@ pub const Statement = union(enum) {
 pub const Block = struct {
     statements: []*Statement,
 
-    /// `tokens` should be the stuff within the braces.
+    /// `tokens` is the stuff within the braces of this block.
     fn parse(allocator: Allocator, tokens: []Token) ParseError!Block {
         var list = ArrayList(*Statement).init(allocator);
         var index: usize = 0;

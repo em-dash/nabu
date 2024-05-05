@@ -46,7 +46,7 @@ pub const Argument = union(Opcode) {
 };
 
 pub const Opcode = enum(u8) {
-    halt = 0,
+    halt,
     int_add,
     call_function,
     set_stack_size,
