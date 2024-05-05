@@ -57,8 +57,8 @@ pub fn build(b: *std.Build) void {
     const pretty = b.dependency("pretty", .{ .target = target, .optimize = optimize });
     exe.root_module.addImport("pretty", pretty.module("pretty"));
 
-    const ziglyph = b.dependency("ziglyph", .{ .target = target, .optimize = optimize });
-    exe.root_module.addImport("ziglyph", ziglyph.module("ziglyph"));
+    // const zg = b.dependency("zg", .{ .target = target, .optimize = optimize });
+    // exe.root_module.addImport("zg", zg.module("zg"));
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
