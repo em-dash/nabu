@@ -128,7 +128,7 @@ pub const Expression = union(enum) {
                 return result;
             },
             .identifier => {
-                // TODO special case this because we know it's already length 1
+                // TODO maybe special case this because we know it's already length 1
                 result.* = .{ .identifier = try ScopedIdentifier.parse(allocator, tokens) };
                 return result;
             },
@@ -304,7 +304,7 @@ pub const Block = struct {
     statements: []*Statement,
 
     /// `tokens` is the stuff within the braces of this block.
-    fn parse(allocator: Allocator, tokens: []Token) ParseError!Block {
+    pub fn parse(allocator: Allocator, tokens: []Token) ParseError!Block {
         var list = ArrayList(*Statement).init(allocator);
         var index: usize = 0;
         while (index < tokens.len - 1) {

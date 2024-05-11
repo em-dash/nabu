@@ -260,8 +260,7 @@ pub const Tokenizer = struct {
                     183984...191456, 191472...192093, 194560...195101, 196608...201546,
                     201552...205743 => state = .word,
                     // zig fmt: on
-                    '1'...'9',
-                    => state = .integer_literal,
+                    '1'...'9' => state = .integer_literal,
                     '0' => state = .zero,
                     '(' => {
                         result.tag = .l_paren;

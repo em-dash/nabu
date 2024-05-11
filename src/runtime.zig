@@ -62,7 +62,9 @@ pub const ObjectHeader = struct {
 
 pub const String = struct {
     header: ObjectHeader = .{ .type = .string },
-    value: []u8 = &[_]u8{},
+    items: []u8 = &[_]u8{},
+    capacity: usize = 0,
+    location: enum { string_table, heap } = .string_table,
 };
 
 // pub const Array = struct {
@@ -241,7 +243,7 @@ const Thread = struct {
                             const header = self.runtime.object_table.getPtr(ref).?.*;
                             const string: *String = @alignCast(@fieldParentPtr("header", header));
 
-                            try std.io.getStdOut().writer().print("{s}\n", .{string.value});
+                            try std.io.getStdOut().writer().print("{s}\n", .{string.items});
                         },
                     }
                 },

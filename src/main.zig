@@ -12,7 +12,7 @@ test {
     // std.testing.refAllDecls(@import("bytecode.zig"));
     // std.testing.refAllDecls(@import("runtime.zig"));
     _ = @import("ast.zig");
-    _ = @import("ast_gen.zig");
+    _ = @import("code_gen.zig");
     _ = @import("tokenization.zig");
     _ = @import("types.zig");
     _ = @import("bytecode.zig");
