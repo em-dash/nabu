@@ -103,7 +103,7 @@ pub const ModuleGen = struct {
         _ = self; // autofix
         _ = function_call; // autofix
         // Check whether this is a builtin function
-        if (mta.stringToEnum(bc.Builtin, function_call.identifier.)) {}
+        // if (mta.stringToEnum(bc.Builtin, function_call.identifier.)) {}
     }
 };
 

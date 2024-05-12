@@ -43,15 +43,15 @@ pub fn build(b: *std.Build) void {
     clean_step.dependOn(&clean.step);
 
     // const llvm = !(b.host.result.cpu.arch == .x86_64);
-    const llvm = true;
+    const use_llvm = true;
 
     const exe = b.addExecutable(.{
         .name = "nabu",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
-        .use_llvm = llvm,
-        .use_lld = llvm,
+        .use_llvm = use_llvm,
+        .use_lld = use_llvm,
     });
 
     const pretty = b.dependency("pretty", .{ .target = target, .optimize = optimize });
@@ -92,8 +92,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
-        .use_llvm = llvm,
-        .use_lld = llvm,
+        .use_llvm = use_llvm,
+        .use_lld = use_llvm,
     });
     exe_unit_tests.root_module.addImport("pretty", pretty.module("pretty"));
 
@@ -104,4 +104,20 @@ pub fn build(b: *std.Build) void {
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
+
+    const lib = b.addStaticLibrary(.{
+        .name = "naburuntime",
+        // In this case the main source file is merely a path, however, in more
+        // complicated build scripts, this could be a generated file.
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .use_llvm = use_llvm,
+        .use_lld = use_llvm,
+    });
+
+    // This declares intent for the library to be installed into the standard
+    // location when the user invokes the "install" step (the default step when
+    // running `zig build`).
+    b.installArtifact(lib);
 }
