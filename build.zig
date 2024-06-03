@@ -35,10 +35,11 @@ pub fn build(b: *std.Build) void {
     urn_step.dependOn(&urn.step);
 
     const clean = b.addSystemCommand(&.{"rm"});
-    clean.addArgs(&.{ "-rf", "zig-out", "zig-cache" });
+    clean.addArgs(&.{ "-rf", "zig-out", ".zig-cache" });
     const clean_step = b.step(
         "clean",
-        "Remove output and cache (shouldn't be required, just to save space)",
+        "Remove output and cache (shouldn't be required, just to save space and workaround " ++
+            "potential errors).",
     );
     clean_step.dependOn(&clean.step);
 
