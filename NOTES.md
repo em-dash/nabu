@@ -18,9 +18,12 @@ const a: Some_Struct_Type = ~{ .field = gimme_a_value() };
 
 fn f(param: Type) Return_Type {
     // do stuff
-    // note parameters are immutable so we can do the zig thing and selectively pass by reference
-    // or value
 }
+
+// builtin fancy types:
+var lol: [Int] = [420, 69, 9001]; // list
+var bruh: String = "plus ça change plus c'est la même chose";
+var number_words: {Int: String} = { 1: "one", 2: "two", 3: "three" }; // map
 
 /// Struct decl
 struct Some_Struct {
@@ -42,19 +45,23 @@ struct Some_Struct {
 }
 
 enum Name {
-    cat,
+    marten,
     red_panda,
     capybara,
 }
 // scoped fns callable with dot syntax like structs
 
 interface Name {
-    fn bork(param: Type) Return;
+    fn bork(param: Type) Return_Type;
+    member: Member_Type,
 }
 // interface polymorphism pls
 
 // generics
-generic List<T> {}
+generic Pog<T> {
+    member: T = foo(),
+    another_member: [5]T,
+}
 
 var l: List<Doggo> = ~{};
 ```
