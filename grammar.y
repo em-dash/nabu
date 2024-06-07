@@ -1,11 +1,15 @@
-Root <- (FnDecl / EnumDecl / IfaceDecl / GenericDecl / StructDecl / VarDecl)
+Root <- ModuleMembers
+
+ModuleDecl <- KEYWORD_module Identifier LBRACE ModuleMembers RBRACE
+
+ModuleMembers <- (FnDecl / EnumDecl / IfaceDecl / GenericDecl / StructDecl / VarDecl / ModuleDecl)*
 
 FnDecl <- KEYWORD_fn Identifier LPAREN ParamDeclList RPAREN Type CodeBlock
 
 FnSignature <- KEYWORD_fn Identifier LPAREN ParamDeclList RPAREN Type Semicolon
 
 Type <- 
-	ScopedIdentifier 
+	ScopedIdentifier
 	/ (LBRACKET ScopedIdentifier RBRACKET)
 	/ (LBRACE ScopedIdentifier COLON Type RBRACE)
 

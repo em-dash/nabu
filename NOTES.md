@@ -1,10 +1,27 @@
+# modules
+- (namespaces basically)
+- by default each file is a module
+- want to declare a module anyway for a laugh?  we have a tool for that, it's:
+```
+module name_of_module {
+    // stuff in module
+}
+```
+- namespaced stuff accessed with dot syntax
+```
+std.whatever.blah.lol();
+this.that.yon.value = 5;
+```
+- use the keyword `using` to slurp another namespace into this one:
+```
+using blah;
+```
 # syntax etc
 - https://unicode.org/reports/tr31/#Immutable_Identifier_Syntax
-## general
-- no statements at base level of structs; entry point is `main`
+### comments
 ```
 // comment
-// just copy comment syntax from zig and co.
+/// three slashes before basically whatever is a doc comment
 ```
 ### assignment and declaration
 ```
