@@ -1,5 +1,6 @@
 # took a bunch of stuff from here: 
 # https://github.com/ziglang/zig-spec/blob/75129c7a34010ead828055c26a6d41d1516faa97/grammar/grammar.y
+# use peg to make sure this is a real grammar
 
 Root <- ModuleMembers
 
@@ -12,23 +13,23 @@ FunctionDecl <- KEYWORD_fn Identifier LPAREN ParamDeclList RPAREN Type FunctionB
 FunctionSignature <- KEYWORD_fn Identifier LPAREN ParamDeclList RPAREN Type Semicolon
 
 Type <- 
-	ScopedIdentifier
-	/ (LBRACKET ScopedIdentifier RBRACKET)
-	/ (LBRACE ScopedIdentifier COLON Type RBRACE)
+    ScopedIdentifier
+    / (LBRACKET ScopedIdentifier RBRACKET)
+    / (LBRACE ScopedIdentifier COLON Type RBRACE)
 
 ClassDecl <- KEYWORD_class Identifier LBRACE ((FunctionDecl / VarDecl / ClassMember COMMA)* / 
-	(ClassMember COMMA)* ClassMember?) RBRACE
+    (ClassMember COMMA)* ClassMember?) RBRACE
 
 # `name: Type,`
 # `name: Type = default_value,`
 ClassMember <- Identifier COLON Type (EQUALS Literal)?
 
-Literal <-
+Literal <- IntegerLiteral / FloatLiteral / StringLiteral / ListLiteral / MapLiteral
 
 IfaceDecl <- KEYWORD_interface Identifier LBRACE FunctionSignature* RBRACE
 
 GenericDecl <- KEYWORD_generic Identifier LESSTHAN Identifier GREATERTHAN LBRACE (FunctionDecl / VarDecl
-	/ ClassMember)* RBRACE
+    / ClassMember)* RBRACE
 
 EnumDecl <- KEYWORD_enum Identifier LBRACE (EnumMember COMMA)* EnumMember? RBRACE
 
@@ -38,11 +39,42 @@ VarDecl <- (KEYWORD_const / KEYWORD_var) Identifier EQUALS Expression SEMICOLON
 
 FunctionCall <- Identifier LPAREN (Expression COMMA)* Expression? RPAREN
 
-Expression <- 
-	(Expression BinaryOperator Expression)
-	/ (LPAREN Expression RPAREN)
-	/ (UnaryOperator Expression)
-	/ FunctionCall
+# precedence levels (we go through these in reverse order)
+# 1:  a() a[] a.b a.* a.?
+# 2:  a#b
+# 3:  x{}
+# 4:  !x -x &x ?x
+# 5:  * / %
+# 6:  + -
+# 7:  orelse catch
+# 8:  == != < > <= >=
+# 9:  and
+# 10: or
+
+Expr <- BoolOrExpr
+BoolOrExpr <- BoolAndExpr (KEYWORD_or BoolAndExpr)*
+BoolAndExpr <- CompareExpr (KEYWORD_and CompareExpr)*
+CompareExpr <- OrelseCatchExpr (CompareOp OrelseCatchExpr)?
+OrelseCatchExpr <- AdditionExpr ((KEYWORD_orelse / KEYWORD_catch Payload?) AdditionExpr)*
+AdditionExpr <- MultiplyExpr (AdditionOp MultiplyExpr)*
+MultiplyExpr <- PrefixExpr (MultiplyOp PrefixExpr)*
+PrefixExpr <- PrefixOp* PrimaryExpr
+
+PrimaryExpr
+    <- IfExpr
+     / KEYWORD_break BreakLabel? Expr?
+     / KEYWORD_continue BreakLabel?
+     / KEYWORD_return Expr?
+     / BlockLabel? LoopExpr
+     / Block
+     / CurlySuffixExpr
+
+IfExpr <- IfPrefix (KEYWORD_else Payload? Expr)?
+
+IfPrefix <- KEYWORD_if LPAREN Expr RPAREN Payload?
+
+BreakLabel <- COLON IDENTIFIER
+BlockLabel <- IDENTIFIER COLON
 
 
 ParamDeclList <- (ParamDecl COMMA)* ParamDecl?
@@ -94,10 +126,12 @@ char_escape
     <- "\\x" hex hex
      / "\\u{" hex+ "}"
      / "\\" [nr\\t'"]
+
 char_char
     <- mb_utf8_literal
      / char_escape
      / ascii_char_not_nl_slash_squote
+
 
 string_char <- char_escape / [^\\"\n]
 
@@ -110,6 +144,29 @@ doc_comment <- ('///' [^\n]* [ \n]* skip)+
 line_comment <- '//' ![!/][^\n]* / '////' [^\n]*
 skip <- ([ \n\r] / line_comment)
 
+BACKTICK <- '`' skip
+LBRACE <- '{' skip
+RBRACE <- '}' skip
+LPAREN <- '(' skip
+RPAREN <- ')' skip
+LBRACKET <- '[' skip
+RBRACKET <- ']' skip
+COMMA <- ',' skip
+COLON <- ':' skip
+SEMICOLON <- ';' skip
+LESSERTHAN <- '<' skip
+DOUBLELESSERTHAN <- '<<' skip
+GREATERTHAN <- '>' skip
+DOUBLEGREATERTHAN <- '>>' skip
+EQUALS <- '=' skip
+DOUBLEEQUALS <- '==' skip
+ASTERISK <- '*' skip
+AMPERSAND <- '&' skip
+DOT <- '.'
+QUESTIONMARK <- '?'
+EXCLAM <- '!'
+EXCLAMEQUALS <- '!='
+
 end_of_word <- ![a-zA-Z0-9_] skip
 KEYWORD_module <- 'module' end_of_word
 KEYWORD_interface <- 'interface' end_of_word
@@ -120,10 +177,5 @@ KEYWORD_class <- 'class' end_of_word
 KEYWORD_var <- 'var' end_of_word
 KEYWORD_const <- 'const' end_of_word
 KEYWORD_this <- 'this' end_of_word
-KEYWORD_z <- 'z' end_of_word
-KEYWORD_z <- 'z' end_of_word
-KEYWORD_z <- 'z' end_of_word
-KEYWORD_z <- 'z' end_of_word
-KEYWORD_z <- 'z' end_of_word
-KEYWORD_z <- 'z' end_of_word
-KEYWORD_z <- 'z' end_of_word
+KEYWORD_if <- 'if' end_of_word
+KEYWORD_else <- 'else' end_of_word

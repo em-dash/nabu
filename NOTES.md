@@ -33,12 +33,37 @@ const name: Explicit_Type = foo();
 // anonymous containers
 const a: Some_Struct_Type = ~{ .field = gimme_a_value() };
 
+// function decl
 fn f(param: Type) Return_Type {
     // do stuff
 }
 
+// return from function requires return keyword
+fn blaze_it() Int {
+    return 420;
+}
+
+
+// blocks are expressions
+// return from blocks by dropping the semicolon (dirty, i know)
+const a = {
+    var x = 1;
+    x += 10;
+    x *= 12;
+    x - 5;
+    x
+};
+
+// function signature
+fn g(param: Type) Return_Type;
+
+// error union:
+fn h() Error_Set#Child_Type {}
+// error union with implied error set:
+fn i() #Child_Type {}
+
 // builtin fancy types:
-var lol: [Int] = [420, 69, 9001]; // list
+var lol: []Int = [420, 69, 9001]; // list
 var bruh: String = "plus ça change plus c'est la même chose";
 var number_words: {Int: String} = { 1: "one", 2: "two", 3: "three" }; // map
 
@@ -61,7 +86,7 @@ struct Some_Struct {
     }
 }
 
-enum Name {
+enum Cute_Lil_Guys {
     marten,
     red_panda,
     capybara,
@@ -108,7 +133,7 @@ base this on what go does; if you do `var a = get_value();`:
 you can get a reference to a thing by saying `var b = &a`
 - either way, you can always treat `a` like a stack value in the relevant scope, and you can use `&a` to get a reference to it
 # style guide
-- lines longer wider than 100 characters will cause a compile error
+- lines longer wider than 100 characters will cause a compile error (jk)
 - snake case `function_call()`, `variable_name`, `enum_member`, `struct_member`
 - wat case `Type_Name`
 
