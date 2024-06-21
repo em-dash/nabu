@@ -6,7 +6,7 @@ Root <- ModuleMembers
 
 ModuleDecl <- KEYWORD_module Identifier LBRACE ModuleMembers RBRACE
 
-ModuleMembers <- (FunctionDecl / EnumDecl / IfaceDecl / GenericDecl / ClassDecl / VarDecl / ModuleDecl)*
+ModuleMembers <- (FunctionDecl / EnumDecl / IfaceDecl / GenericDecl / StructDecl / VarDecl / ModuleDecl)*
 
 FunctionDecl <- KEYWORD_fn Identifier LPAREN ParamDeclList RPAREN Type FunctionBody
 
@@ -17,19 +17,19 @@ Type <-
     / (LBRACKET ScopedIdentifier RBRACKET)
     / (LBRACE ScopedIdentifier COLON Type RBRACE)
 
-ClassDecl <- KEYWORD_class Identifier LBRACE ((FunctionDecl / VarDecl / ClassMember COMMA)* / 
-    (ClassMember COMMA)* ClassMember?) RBRACE
+StructDecl <- KEYWORD_struct Identifier LBRACE ((FunctionDecl / VarDecl / StructMember COMMA)* / 
+    (StructMember COMMA)* StructMember?) RBRACE
 
 # `name: Type,`
 # `name: Type = default_value,`
-ClassMember <- Identifier COLON Type (EQUALS Literal)?
+StructMember <- Identifier COLON Type (EQUALS Literal)?
 
 Literal <- IntegerLiteral / FloatLiteral / StringLiteral / ListLiteral / MapLiteral
 
 IfaceDecl <- KEYWORD_interface Identifier LBRACE FunctionSignature* RBRACE
 
 GenericDecl <- KEYWORD_generic Identifier LESSTHAN Identifier GREATERTHAN LBRACE (FunctionDecl / VarDecl
-    / ClassMember)* RBRACE
+    / StructMember)* RBRACE
 
 EnumDecl <- KEYWORD_enum Identifier LBRACE (EnumMember COMMA)* EnumMember? RBRACE
 
@@ -38,6 +38,10 @@ EnumMember <- Identifier (EQUALS IntegerLiteral)?
 VarDecl <- (KEYWORD_const / KEYWORD_var) Identifier EQUALS Expression SEMICOLON
 
 FunctionCall <- Identifier LPAREN (Expression COMMA)* Expression? RPAREN
+
+AssignExpr <- Expr (AssignOp Expr / (COMMA Expr)+ EQUAL Expr)?
+
+SingleAssignExpr <- Expr (AssignOp Expr)?
 
 # precedence levels (we go through these in reverse order)
 # 1:  a() a[] a.b a.* a.?
@@ -69,19 +73,46 @@ PrimaryExpr
      / Block
      / CurlySuffixExpr
 
+TypeExpr <- PrefixTypeOp* ErrorUnionExpr
+
+ErrorUnionExpr <- SuffixExpr (EXCLAMATIONMARK TypeExpr)?
+
+SuffixExpr
+    <- KEYWORD_async PrimaryTypeExpr SuffixOp* FnCallArguments
+     / PrimaryTypeExpr (SuffixOp / FnCallArguments)*
+
+SuffixOp
+    <- LBRACKET Expr (DOT2 (Expr? (COLON Expr)?)?)? RBRACKET
+     / DOT Identifier
+     / DOTASTERISK
+     / DOTQUESTIONMARK
+
 IfExpr <- IfPrefix (KEYWORD_else Payload? Expr)?
 
 IfPrefix <- KEYWORD_if LPAREN Expr RPAREN Payload?
 
-BreakLabel <- COLON IDENTIFIER
-BlockLabel <- IDENTIFIER COLON
-
+BreakLabel <- COLON Identifier
+BlockLabel <- Identifier COLON
 
 ParamDeclList <- (ParamDecl COMMA)* ParamDecl?
 
 ParamDecl <- Identifier COLON Type
 
 ScopedIdentifier <- Identifier (DOT Identifier)*
+
+Statement
+    <- KEYWORD_defer BlockExprStatement
+     / KEYWORD_errdefer Payload? BlockExprStatement
+     / IfStatement
+     / LabeledStatement
+     / SwitchExpr
+     / VarDeclExprStatement
+
+BlockExprStatement <- BlockExpr / AssignExpr SEMICOLON
+
+VarDeclProto <- (KEYWORD_const / KEYWORD_var) Identifier (COLON Type)?
+
+VarDeclExprStatement <- VarDeclProto
 
 # tokens
 ox80_oxBF <- [\200-\277]
@@ -132,12 +163,11 @@ char_char
      / char_escape
      / ascii_char_not_nl_slash_squote
 
-
 string_char <- char_escape / [^\\"\n]
 
-id_char <- char_escape / [^\`\n]
+id_char <- char_escape / [^\\`\n]
 
-IDENTIFIER <- (!keyword [A-Za-z_] [A-Za-z0-9_]* skip) / BACKTICK id_char BACKTICK
+Identifier <- (!keyword [A-Za-z_] [A-Za-z0-9_]* skip) / BACKTICK id_char BACKTICK / KEYWORD_this
 
 eof <- !.
 doc_comment <- ('///' [^\n]* [ \n]* skip)+
@@ -173,9 +203,11 @@ KEYWORD_interface <- 'interface' end_of_word
 KEYWORD_generic <- 'generic' end_of_word
 KEYWORD_enum <- 'enum' end_of_word
 KEYWORD_fn <- 'fn' end_of_word
-KEYWORD_class <- 'class' end_of_word
+KEYWORD_struct <- 'struct' end_of_word
 KEYWORD_var <- 'var' end_of_word
 KEYWORD_const <- 'const' end_of_word
 KEYWORD_this <- 'this' end_of_word
 KEYWORD_if <- 'if' end_of_word
 KEYWORD_else <- 'else' end_of_word
+KEYWORD_defer <- 'defer' end_of_word
+KEYWORD_errdefer <- 'errdefer' end_of_word

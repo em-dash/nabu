@@ -40,7 +40,13 @@ pub const Token = struct {
         keyword_fn,
         keyword_and,
         keyword_or,
-        keyword_xor,
+        keyword_this,
+        keyword_module,
+        keyword_interface,
+        keyword_generic,
+        keyword_enum,
+        keyword_struct,
+        keyword_
         colon,
         dot,
     };
