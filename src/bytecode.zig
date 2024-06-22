@@ -17,7 +17,8 @@ const ShortType = runtime.ShortType;
 /// List of builtin functions
 pub const Builtin = enum(u16) {
     // Builtin type operations
-    string_puts,
+    put_string,
+    this,
 };
 
 pub const BuiltinArgument = extern struct {
