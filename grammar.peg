@@ -81,20 +81,21 @@ CatchExpression <- ShiftExpression (CatchOp ShiftExpression)*
 CatchOp <- KEYWORD_catch / KEYWORD_orelse / AMPERSAND / CARET / PIPE
 
 ShiftExpression <- AddExpression (ShiftOp AddExpression)*
-ShiftOp <- LESSLESS / GREATERGREATER / LESSPIPE
+ShiftOp <- LESSLESS / GREATERGREATER / LESSLESSPIPE
 
 AddExpression <- MultiplyExpression (AddOp MultiplyExpression)*
-AddOp <- PLUS / MINUS / PLUSPLUS
+AddOp <- PLUS / MINUS / PLUSPLUS / PLUSPIPE / PLUSPERCENT
 
 MultiplyExpression <- PrefixExpression (MultiplyOp PrefixExpression)*
-MultiplyOp <- ASTERISK / FORWARDSLASH / PERCENT / ASTERISKASTERISK
+MultiplyOp <- ASTERISK / FORWARDSLASH / PERCENT / ASTERISKASTERISK / ASTERISKPERCENT / ASTERISKPIPE
 
 PrefixExpression <- PrefixOp* SuffixExpression
 PrefixOp <- EXCLAM / MINUS / AMPERSAND / KEYWORD_try
 
 SuffixExpression <- PrimaryExpression SuffixOp*
 # 1:  a.* a.?
-SuffixOp <- (DOT ASTERISK) / (DOT QUESTIONMARK) / (LBRACKET Expression RBRACKET)
+SuffixOp <- DOTASTERISK / DOTQUESTIONMARK / (LBRACKET Expression RBRACKET) / (LBRACKET Expression
+    DOTDOT Expression RBRACKET)
 
 PrimaryExpression <- FunctionCall
     / BlockLabel? Block
@@ -231,59 +232,66 @@ INTEGER
      / "0x" hex_int skip
      /      dec_int skip
 
-PLUSPERCENTEQUALS <- '+%=' skip
-ASTERISKPERCENTEQUALS <- '*%=' skip
-MINUSPERCENTEQUALS <- '-%=' skip
-PLUSPIPEEQUALS <- '+|=' skip
-ASTERISKPIPEEQUALS <- '*|=' skip
-MINUSPIPEEQUALS <- '-|=' skip
-PIPEEQUALS <- '|=' skip
+
 AMPERSANDEQUALS <- '&=' skip
-CARETEQUALS <- '^=' skip
-LESSLESSPIPEEQUALS <- '<<|=' skip
-PERCENTEQUALS <- '%=' skip
-PLUSPLUS <- '++' skip
+AMPERSAND <- '&' ![=] skip
 ASTERISKASTERISK <- '**' skip
-AMPERSAND <- '&' skip
-ASTERISK <- '*' skip
+ASTERISKEQUALS <- '*=' skip
+ASTERISKPERCENTEQUALS <- '*%=' skip
+ASTERISKPERCENT <- '*%' ![=] skip
+ASTERISKPIPEEQUALS <- '*|=' skip
+ASTERISKPIPE <- '*|' ![=] skip
+ASTERISK <- '*' ![*=%|] skip
+CARETEQUALS <- '^=' skip
+CARET <- '^' ![=] skip
 COLON <- ':' skip
 COMMA <- ',' skip
-DOTDOT <- '..' skip
-DOT <- '.' skip
+DOTASTERISK <- '.*' skip
+DOTDOTDOT <- '...' skip
+DOTDOT <- '..' ![.] skip
+DOTQUESTIONMARK <- '.?' skip
+DOT <- '.' ![*.?] skip
 EQUALSEQUALS <- '==' skip
 EQUALSGREATER <- '=>' skip
-EQUALS <- '=' skip
+EQUALS <- '=' ![=>] skip
 EXCLAMEQUALS <- '!=' skip
-EXCLAM <- '!' skip
-FORWARDSLASH <- '/' skip
+EXCLAM <- '!' ![=] skip
+FORWARDSLASHEQUALS <- '/=' skip
+FORWARDSLASH <- '/' ![=] skip
 GREATEREQUALS <- '>=' skip
-GREATERGREATER <- '>>' skip
 GREATERGREATEREQUALS <- '>>=' skip
-GREATER <- '>' skip
+GREATERGREATER <- '>>' ![=] skip
+GREATER <- '>' ![=>] skip
 LBRACE <- '{' skip
 LBRACKET <- '[' skip
 LESSEQUALS <- '<=' skip
-LESSLESS <- '<<' skip
 LESSLESSEQUALS <- '<<=' skip
-LESS <- '<' skip
+LESSLESSPIPEEQUALS <- '<<|=' skip
+LESSLESSPIPE <- '<<|' skip
+LESSLESS <- '<<' ![=|] skip
+LESS <- '<' ![<] skip
 LPAREN <- '(' skip
+MINUSEQUALS <- '-=' skip
+MINUSPERCENTEQUALS <- '-%=' skip
+MINUSPIPEEQUALS <- '-|=' skip
 MINUS <- '-' skip
 OCTOTHORPE <- '#' skip
-PERCENT <- '%' skip
-PIPE <- '|' skip
-PLUS <- '+' skip
-QUESTIONMARK <- '?' skip
+PERCENTEQUALS <- '%=' skip
+PERCENT <- '%' ![=] skip
+PIPEEQUALS <- '|=' skip
+PIPE <- '|' ![=] skip
+PLUSEQUALS <- '+=' skip
+PLUSPERCENTEQUALS <- '+%=' skip
+PLUSPERCENT <- '+%' ![=] skip
+PLUSPIPEEQUALS <- '+|=' skip
+PLUSPIPE <- '+|' ![=] skip
+PLUSPLUS <- '++' skip
+PLUS <- '+' ![+|=%] skip
 RBRACE <- '}' skip
 RBRACKET <- ']' skip
 RPAREN <- ')' skip
 SEMICOLON <- ';' skip
-DOTDOTDOT <- '...' skip
-PLUSEQUALS <- '+=' skip
-ASTERISKEQUALS <- '*=' skip
-FORWARDSLASHEQUALS <- '/=' skip
-MINUSEQUALS <- '-=' skip
-CARET <- '^' skip
-LESSPIPE <- '<|' skip
+
 
 end_of_word <- ![a-zA-Z0-9_] skip
 KEYWORD_module <- 'module' end_of_word
@@ -312,5 +320,9 @@ KEYWORD_return <- 'return' end_of_word
 KEYWORD_implements <- 'implements' end_of_word
 
 
-keyword <- 
-
+keyword <- KEYWORD_module / KEYWORD_interface / KEYWORD_enum / KEYWORD_fn /
+KEYWORD_struct / KEYWORD_var / KEYWORD_const / KEYWORD_if / KEYWORD_else /
+KEYWORD_defer / KEYWORD_errdefer / KEYWORD_error / KEYWORD_break /
+KEYWORD_continue / KEYWORD_switch / KEYWORD_while / KEYWORD_for /
+KEYWORD_orelse / KEYWORD_catch / KEYWORD_or / KEYWORD_and / KEYWORD_try /
+KEYWORD_return / KEYWORD_implements
