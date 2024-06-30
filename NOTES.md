@@ -1,3 +1,7 @@
+# goals !!
+- a good first language for new programmers
+- simplicity is king
+- good for embedding in stuff, lua-style
 # modules
 - (namespaces basically)
 - by default each file is a module
@@ -45,13 +49,13 @@ fn blaze_it() Int {
 
 
 // blocks are expressions
-// return from blocks by dropping the semicolon (dirty, i know)
-const a = {
+// return from blocks the zig way
+const a = blk: {
     var x = 1;
     x += 10;
     x *= 12;
     x - 5;
-    x
+    break :blk x;
 };
 
 // function signature
@@ -75,13 +79,14 @@ struct Some_Struct {
     const scoped_value = "blep";
     var mutable_scoped_value = 5;
 
-    fn scoped_function(param: Type) Return_Type {
+    /// This is a method, it must be called as `foo.function()`, assuming `foo` is an instance of
+    /// `Some_Struct`.
+    fn method(self: Some_Struct) Some_Struct {
         // do stuff
     }
 
-    /// Assuming `foo` is an instance of `Some_Struct`, this can be called like 
-    /// `foo.function_with_self()`.
-    fn function_with_self(self: Some_Struct) Some_Struct {
+    /// You can do the same thing with a reference to modify the struct in place.
+    fn modify_in_place(self: *Some_Struct) void {
         // do stuff
     }
 }
@@ -114,9 +119,21 @@ const b = 1 - 1;
 const c = 1 / 1;
 const d = 1 * 1;
 ```
-### slices and ranges
+### byte type (idk what to call it)
+this type is a list of bytes that you can do extra operations on, like shifting and such.
+it works like a slice of bytes, and an unsigned integer at the same time.
+you gotta cast to this type to use its operations.
+is this a good idea?  who knows!
+### ranges
+range is just a fancy list instantiation, altho we can optimize this under the hood
+```
+[1..5] // the numbers 1 to 5, exclusive on the upper bound.  this kills me but it's become a standard.
+[0..10|2] // 1 to 10 in increments of 2.  this gives a list of 0, 2, 4, 6, 8.
+```
+### slices
 ```
 ```
+
 ## interactive
 ### do not keep bruh moment from python, node, etc
 `exit` and `quit` do what they say because why the hell wouldn't they

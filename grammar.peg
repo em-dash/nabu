@@ -1,21 +1,44 @@
 # took a bunch of stuff from here: 
 # https://github.com/ziglang/zig-spec/blob/75129c7a34010ead828055c26a6d41d1516faa97/grammar/grammar.y
-# use peg to make sure this is a real grammar
+# using peg to make sure this is a real grammar
 
 Root <- skip file_doc_comment? ModuleMembers eof
 
 ModuleDecl <- KEYWORD_module IDENTIFIER LBRACE ModuleMembers RBRACE
-
-ModuleMembers <- (FunctionDecl / EnumDecl / InterfaceDecl / GenericDecl / StructDecl / VarDecl 
+ModuleMembers <- (FunctionDecl / EnumDecl / InterfaceDecl / StructDecl / VarDecl 
     / ModuleDecl / ErrorDecl)*
+
+EnumDecl <- KEYWORD_enum IDENTIFIER LBRACE Decl* (EnumMember COMMA)* EnumMember? Decl* RBRACE
+EnumMember <- IDENTIFIER (EQUALS INTEGER)?
+
+StructDecl <- KEYWORD_struct IDENTIFIER GenericIdentifier? (KEYWORD_implements 
+    ScopedIdentifier)* LBRACE Decl* (StructMember COMMA)* StructMember? Decl* RBRACE
+StructMember <- IDENTIFIER COLON Type (EQUALS Literal)?
+
+Literal <- STRINGLITERAL
+    / ListLiteral
+    / MapLiteral
+    / StructLiteral
+    / INTEGER
+    / FLOAT
+
+InterfaceDecl <- KEYWORD_interface IDENTIFIER LBRACE Decl* (InterfaceMember COMMA)* 
+    InterfaceMember? Decl* RBRACE
+InterfaceMember <- ScopedIdentifier / FunctionSignature
 
 ErrorDecl <- KEYWORD_error IDENTIFIER LBRACE (IDENTIFIER COMMA)* IDENTIFIER? RBRACE
 
-FunctionDecl <- KEYWORD_fn IDENTIFIER LPAREN (DeclParam COMMA)* DeclParam? RPAREN Type FunctionBody
+Decl <- VarDecl / FunctionDecl
 
-# FunctionSignature <- KEYWORD_fn IDENTIFIER LPAREN (Type COMMA)* Type? RPAREN Type SEMICOLON
+GenericIdentifier <- LESS IDENTIFIER GREATER
 
-DeclParam <- Identifier COLON Type
+FunctionDecl <- KEYWORD_fn IDENTIFIER GenericIdentifier? LPAREN (DeclParam COMMA)* DeclParam? 
+    RPAREN ((ScopedIdentifier / ErrorDecl)? OCTOTHORPE)? Type Block
+
+FunctionSignature <- KEYWORD_fn IDENTIFIER GenericIdentifier? LPAREN (Type COMMA)* Type? RPAREN
+    ((ScopedIdentifier / ErrorDecl)? OCTOTHORPE)? Type
+
+DeclParam <- IDENTIFIER COLON Type
 
 # identifier:  Something.Whatever
 # list:        [Int]
@@ -26,22 +49,24 @@ Type <- ScopedIdentifier
     / (LBRACE ScopedIdentifier COLON Type RBRACE)
     / (ASTERISK Type)
 
-MaybeErrorUnionType <- ((ScopedIdentifier / ErrorDecl)? OCTOTHORPE)? Type
 
 ScopedIdentifier <- IDENTIFIER (DOT IDENTIFIER)*
 
-VarDecl <- (KEYWORD_const / KEYWORD_var) IDENTIFIER (COLON Type)? EQUALS Expression
+VarDecl <- (KEYWORD_const / KEYWORD_var) IDENTIFIER (COLON ((ScopedIdentifier / ErrorDecl) 
+    OCTOTHORPE)? Type)? EQUALS Expression SEMICOLON
 
 
 # precedence levels (we go through these in reverse order)
 # 1:  a() a[] a.b a.* a.?
-# 2:  !x -x &x ?x
-# 3:  * / %
-# 4:  + -
-# 5:  catch orelse
-# 6:  == != < > <= >=
-# 7:  and
-# 8:  or
+# 2:  !x -x &x
+# 3:  * / % **
+# 4:  + - ++
+# 5:  << >>
+# 6:  catch orelse & ^ |
+# 7:  == != < > <= >=
+# 8:  and
+# 9:  or
+
 Expression <- OrExpression
 
 OrExpression <- AndExpression (KEYWORD_or AndExpression)*
@@ -49,292 +74,243 @@ OrExpression <- AndExpression (KEYWORD_or AndExpression)*
 AndExpression <- CompareExpression (KEYWORD_and CompareExpression)*
 
 CompareExpression <- CatchExpression (CompareOp CatchExpression)?
-CompareOp <- DOUBLEEQUALS / EXCLAMEQUALS / LESSERTHAN / GREATERTHAN / LESSERTHANEQUALS
-    / GREATERTHANEQUALS
+CompareOp <- EQUALSEQUALS / EXCLAMEQUALS / LESS / GREATER / LESSEQUALS
+    / GREATEREQUALS
 
-CatchExpression <- AddExpression (CatchOp AddExpression)*
-CatchOp <- KEYWORD_catch / KEYWORD_orelse
+CatchExpression <- ShiftExpression (CatchOp ShiftExpression)*
+CatchOp <- KEYWORD_catch / KEYWORD_orelse / AMPERSAND / CARET / PIPE
+
+ShiftExpression <- AddExpression (ShiftOp AddExpression)*
+ShiftOp <- LESSLESS / GREATERGREATER / LESSPIPE
 
 AddExpression <- MultiplyExpression (AddOp MultiplyExpression)*
-AddOp <- PLUS / MINUS
+AddOp <- PLUS / MINUS / PLUSPLUS
 
-MultiplyExpression <- 
+MultiplyExpression <- PrefixExpression (MultiplyOp PrefixExpression)*
+MultiplyOp <- ASTERISK / FORWARDSLASH / PERCENT / ASTERISKASTERISK
 
-PrefixExpression <-
+PrefixExpression <- PrefixOp* SuffixExpression
+PrefixOp <- EXCLAM / MINUS / AMPERSAND / KEYWORD_try
 
-SuffixExpression <-
+SuffixExpression <- PrimaryExpression SuffixOp*
+# 1:  a.* a.?
+SuffixOp <- (DOT ASTERISK) / (DOT QUESTIONMARK) / (LBRACKET Expression RBRACKET)
+
+PrimaryExpression <- FunctionCall
+    / BlockLabel? Block
+    / STRINGLITERAL
+    / ListLiteral
+    / MapLiteral
+    / StructLiteral
+    / INTEGER
+    / FLOAT
+    / IfExpression
+    / KEYWORD_break BreakLabel? Expression?
+    / KEYWORD_continue BreakLabel?
+    / BlockLabel? LoopExpression
+    / SwitchExpression
+    / KEYWORD_return Expression?
+
+AssignExpression <- ScopedIdentifier AssignOp Expression
+AssignOp <- EQUALS / PLUSEQUALS / MINUSEQUALS / ASTERISKEQUALS / FORWARDSLASHEQUALS / PERCENTEQUALS
+    / LESSLESSEQUALS / GREATERGREATEREQUALS / PLUSPERCENTEQUALS / PLUSPIPEEQUALS / MINUSPIPEEQUALS
+    / MINUSPERCENTEQUALS / ASTERISKPERCENTEQUALS / LESSLESSEQUALS / GREATERGREATEREQUALS
+    / LESSLESSPIPEEQUALS / AMPERSANDEQUALS / CARETEQUALS / PIPEEQUALS / ASTERISKPIPEEQUALS
+
+FunctionCall <- ScopedIdentifier LPAREN (Expression COMMA)* Expression? RPAREN
+
+Block <- LBRACE Statement* RBRACE
+
+ListLiteral <- LBRACKET (Expression COMMA)* Expression? RBRACKET
+    / LBRACKET INTEGER DOTDOT INTEGER (PIPE INTEGER)? RBRACKET
+
+MapLiteral <- LBRACE (MapLiteralItem COMMA)* MapLiteralItem? RBRACE
+MapLiteralItem <- Expression COLON Expression
+
+StructLiteral <- (ScopedIdentifier / DOT) LBRACE (StructLiteralItem COMMA)* StructLiteralItem? RBRACE
+StructLiteralItem <- DOT IDENTIFIER EQUALS Expression
+
+IfExpression <- KEYWORD_if RPAREN Expression LPAREN PtrPayload?
+    (KEYWORD_else Payload? Expression)?
+
+LoopExpression <- ForExpression / WhileExpression
+
+WhileExpression <- KEYWORD_while LPAREN Expression RPAREN PtrPayload? COLON LPAREN AssignExpression
+    RPAREN Expression (KEYWORD_else Expression)?
+
+ForExpression <- KEYWORD_for LPAREN ForArgumentsList RPAREN PtrListPayload Expression 
+    (KEYWORD_else Expression)?
+ForArgumentsList <- ForItem (COMMA ForItem)* COMMA?
+ForItem <- Expression (DOTDOT Expression?)?
+
+Payload <- PIPE IDENTIFIER PIPE
+
+PtrPayload <- PIPE ASTERISK? IDENTIFIER PIPE
+
+PtrIndexPayload <- PIPE ASTERISK? IDENTIFIER (COMMA IDENTIFIER)? PIPE
+
+PtrListPayload <- PIPE ASTERISK? IDENTIFIER (COMMA ASTERISK? IDENTIFIER)* COMMA? PIPE
+
+SwitchExpression <- KEYWORD_switch LPAREN Expression RPAREN LBRACE (SwitchProng COMMA)* SwitchProng
+    RBRACE
+
+SwitchProng <- SwitchCase EQUALSGREATER PtrIndexPayload? Expression
+
+SwitchCase
+    <- SwitchItem (COMMA SwitchItem)* COMMA?
+     / KEYWORD_else
+
+SwitchItem <- Expression (DOTDOTDOT Expression)?
+
+Statement <- IfExpression / SwitchExpression / WhileExpression / ForExpression / (KEYWORD_defer 
+    / KEYWORD_errdefer)? Expression SEMICOLON
 
 
 
+BlockLabel <- IDENTIFIER COLON
+
+BreakLabel <- COLON IDENTIFIER
+
+STRINGLITERALSINGLE <- "\"" string_char* "\"" skip
+STRINGLITERAL
+    <- STRINGLITERALSINGLE
+     / (line_string skip)+
 
 
+IDENTIFIER <- !keyword xid_start xid_continue* skip
+    / "`" string_id_char* "`" skip
+# i 'ardly know 'er 🤣
 
+char_escape
+    <- "\\x" hex hex
+     / "\\u{" hex+ "}"
+     / "\\" [nr\\t'"]
 
+string_char
+    <- char_escape
+     / [^\\"\n]
 
-IDENTIFIER <- !keyword xid_start xid_continue* skip # i 'ardly know 'er 🤣
+string_id_char <- char_escape / [^\\`\n]
+
+line_string <- ("\\\\" [^\n]* [ \n]*)+
+
 
 # peg doesn't allow \Uhhhh escape sequences and i'm not converting this all to octal for no reason
 # so just pretend xid_start and xid_continue are here
 # xid_start <- lol
 # xid_continue <- lmao
 
+bin <- [01]
+bin_ <- '_'? bin
+oct <- [0-7]
+oct_ <- '_'? oct
+hex <- [0-9a-fA-F]
+hex_ <- '_'? hex
+dec <- [0-9]
+dec_ <- '_'? dec
+
+bin_int <- bin bin_*
+oct_int <- oct oct_*
+dec_int <- dec dec_*
+hex_int <- hex hex_*
+
 eof <- !.
 file_doc_comment <- ('//!' [^\n]* [ \n]* skip)+
-doc_comment <- ('///' [^\n]* [ \n]* skip)+
+# doc_comment <- ('///' [^\n]* [ \n]* skip)+
 line_comment <- '//' ![!/][^\n]* / '////' [^\n]*
 skip <- ([ \n\r] / line_comment)
 
-BACKTICK <- '`' skip
-LBRACE <- '{' skip
-RBRACE <- '}' skip
-LPAREN <- '(' skip
-RPAREN <- ')' skip
-LBRACKET <- '[' skip
-RBRACKET <- ']' skip
-COMMA <- ',' skip
-COLON <- ':' skip
-SEMICOLON <- ';' skip
-LESSERTHAN <- '<' skip
-DOUBLELESSERTHAN <- '<<' skip
-GREATERTHAN <- '>' skip
-DOUBLEGREATERTHAN <- '>>' skip
-EQUALS <- '=' skip
-DOUBLEEQUALS <- '==' skip
-ASTERISK <- '*' skip
+FLOAT
+    <- "0x" hex_int "." hex_int ([pP] [-+]? dec_int)? skip
+     /      dec_int "." dec_int ([eE] [-+]? dec_int)? skip
+     / "0x" hex_int [pP] [-+]? dec_int skip
+     /      dec_int [eE] [-+]? dec_int skip
+INTEGER
+    <- "0b" bin_int skip
+     / "0o" oct_int skip
+     / "0x" hex_int skip
+     /      dec_int skip
+
+PLUSPERCENTEQUALS <- '+%=' skip
+ASTERISKPERCENTEQUALS <- '*%=' skip
+MINUSPERCENTEQUALS <- '-%=' skip
+PLUSPIPEEQUALS <- '+|=' skip
+ASTERISKPIPEEQUALS <- '*|=' skip
+MINUSPIPEEQUALS <- '-|=' skip
+PIPEEQUALS <- '|=' skip
+AMPERSANDEQUALS <- '&=' skip
+CARETEQUALS <- '^=' skip
+LESSLESSPIPEEQUALS <- '<<|=' skip
+PERCENTEQUALS <- '%=' skip
+PLUSPLUS <- '++' skip
+ASTERISKASTERISK <- '**' skip
 AMPERSAND <- '&' skip
+ASTERISK <- '*' skip
+COLON <- ':' skip
+COMMA <- ',' skip
+DOTDOT <- '..' skip
 DOT <- '.' skip
-QUESTIONMARK <- '?' skip
-EXCLAM <- '!' skip
+EQUALSEQUALS <- '==' skip
+EQUALSGREATER <- '=>' skip
+EQUALS <- '=' skip
 EXCLAMEQUALS <- '!=' skip
+EXCLAM <- '!' skip
+FORWARDSLASH <- '/' skip
+GREATEREQUALS <- '>=' skip
+GREATERGREATER <- '>>' skip
+GREATERGREATEREQUALS <- '>>=' skip
+GREATER <- '>' skip
+LBRACE <- '{' skip
+LBRACKET <- '[' skip
+LESSEQUALS <- '<=' skip
+LESSLESS <- '<<' skip
+LESSLESSEQUALS <- '<<=' skip
+LESS <- '<' skip
+LPAREN <- '(' skip
+MINUS <- '-' skip
 OCTOTHORPE <- '#' skip
+PERCENT <- '%' skip
+PIPE <- '|' skip
+PLUS <- '+' skip
+QUESTIONMARK <- '?' skip
+RBRACE <- '}' skip
+RBRACKET <- ']' skip
+RPAREN <- ')' skip
+SEMICOLON <- ';' skip
+DOTDOTDOT <- '...' skip
+PLUSEQUALS <- '+=' skip
+ASTERISKEQUALS <- '*=' skip
+FORWARDSLASHEQUALS <- '/=' skip
+MINUSEQUALS <- '-=' skip
+CARET <- '^' skip
+LESSPIPE <- '<|' skip
 
 end_of_word <- ![a-zA-Z0-9_] skip
 KEYWORD_module <- 'module' end_of_word
 KEYWORD_interface <- 'interface' end_of_word
-KEYWORD_generic <- 'generic' end_of_word
 KEYWORD_enum <- 'enum' end_of_word
 KEYWORD_fn <- 'fn' end_of_word
 KEYWORD_struct <- 'struct' end_of_word
 KEYWORD_var <- 'var' end_of_word
 KEYWORD_const <- 'const' end_of_word
-KEYWORD_this <- 'this' end_of_word
 KEYWORD_if <- 'if' end_of_word
 KEYWORD_else <- 'else' end_of_word
 KEYWORD_defer <- 'defer' end_of_word
 KEYWORD_errdefer <- 'errdefer' end_of_word
 KEYWORD_error <- 'error' end_of_word
+KEYWORD_break <- 'break' end_of_word
+KEYWORD_continue <- 'continue' end_of_word
+KEYWORD_switch <- 'switch' end_of_word
+KEYWORD_while <- 'while' end_of_word
+KEYWORD_for <- 'for' end_of_word
+KEYWORD_orelse <- 'orelse' end_of_word
+KEYWORD_catch <- 'catch' end_of_word
+KEYWORD_or <- 'or' end_of_word
+KEYWORD_and <- 'and' end_of_word
+KEYWORD_try <- 'try' end_of_word
+KEYWORD_return <- 'return' end_of_word
+KEYWORD_implements <- 'implements' end_of_word
+
 
 keyword <- 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# StructDecl <- KEYWORD_struct Identifier LBRACE ((FunctionDecl / VarDecl / StructMember COMMA)* / 
-#     (StructMember COMMA)* StructMember?) RBRACE
-
-# # `name: Type,`
-# # `name: Type = default_value,`
-# StructMember <- Identifier COLON Type (EQUALS Literal)?
-
-# Literal <- IntegerLiteral / FloatLiteral / StringLiteral / ListLiteral / MapLiteral
-
-# IfaceDecl <- KEYWORD_interface Identifier LBRACE FunctionSignature* RBRACE
-
-# GenericDecl <- KEYWORD_generic Identifier LESSTHAN Identifier GREATERTHAN LBRACE (FunctionDecl / VarDecl
-#     / StructMember)* RBRACE
-
-# EnumDecl <- KEYWORD_enum Identifier LBRACE (EnumMember COMMA)* EnumMember? RBRACE
-
-# EnumMember <- Identifier (EQUALS IntegerLiteral)?
-
-# VarDecl <- (KEYWORD_const / KEYWORD_var) Identifier EQUALS Expression SEMICOLON
-
-# FunctionCall <- Identifier LPAREN (Expression COMMA)* Expression? RPAREN
-
-# AssignExpr <- Expr (AssignOp Expr / (COMMA Expr)+ EQUAL Expr)?
-
-# SingleAssignExpr <- Expr (AssignOp Expr)?
-
-# precedence levels (we go through these in reverse order)
-# 1:  a() a[] a.b a.* a.?
-# 2:  a#b
-# 3:  x{}
-# 4:  !x -x &x ?x
-# 5:  * / %
-# 6:  + -
-# 7:  orelse catch
-# 8:  == != < > <= >=
-# 9:  and
-# 10: or
-
-# Expr <- BoolOrExpr
-# BoolOrExpr <- BoolAndExpr (KEYWORD_or BoolAndExpr)*
-# BoolAndExpr <- CompareExpr (KEYWORD_and CompareExpr)*
-# CompareExpr <- OrelseCatchExpr (CompareOp OrelseCatchExpr)?
-# OrelseCatchExpr <- AdditionExpr ((KEYWORD_orelse / KEYWORD_catch Payload?) AdditionExpr)*
-# AdditionExpr <- MultiplyExpr (AdditionOp MultiplyExpr)*
-# MultiplyExpr <- PrefixExpr (MultiplyOp PrefixExpr)*
-# PrefixExpr <- PrefixOp* PrimaryExpr
-
-# PrimaryExpr
-#     <- IfExpr
-#      / KEYWORD_break BreakLabel? Expr?
-#      / KEYWORD_continue BreakLabel?
-#      / KEYWORD_return Expr?
-#      / BlockLabel? LoopExpr
-#      / Block
-#      / CurlySuffixExpr
-
-# TypeExpr <- PrefixTypeOp* ErrorUnionExpr
-
-# ErrorUnionExpr <- SuffixExpr (EXCLAMATIONMARK TypeExpr)?
-
-# SuffixExpr
-#     <- KEYWORD_async PrimaryTypeExpr SuffixOp* FnCallArguments
-#      / PrimaryTypeExpr (SuffixOp / FnCallArguments)*
-
-# SuffixOp
-#     <- LBRACKET Expr (DOT2 (Expr? (COLON Expr)?)?)? RBRACKET
-#      / DOT Identifier
-#      / DOTASTERISK
-#      / DOTQUESTIONMARK
-
-# IfExpr <- IfPrefix (KEYWORD_else Payload? Expr)?
-
-# IfPrefix <- KEYWORD_if LPAREN Expr RPAREN Payload?
-
-# BreakLabel <- COLON Identifier
-# BlockLabel <- Identifier COLON
-
-# ParamDeclList <- (ParamDecl COMMA)* ParamDecl?
-
-# ParamDecl <- Identifier COLON Type
-
-# ScopedIdentifier <- Identifier (DOT Identifier)*
-
-# Statement
-#     <- KEYWORD_defer BlockExprStatement
-#      / KEYWORD_errdefer Payload? BlockExprStatement
-#      / IfStatement
-#      / LabeledStatement
-#      / SwitchExpr
-#      / VarDeclExprStatement
-
-# BlockExprStatement <- BlockExpr / AssignExpr SEMICOLON
-
-# VarDeclProto <- (KEYWORD_const / KEYWORD_var) Identifier (COLON Type)?
-
-# VarDeclExprStatement <- VarDeclProto
-
-# # tokens
-# ox80_oxBF <- [\200-\277]
-# oxF4 <- '\364'
-# ox80_ox8F <- [\200-\217]
-# oxF1_oxF3 <- [\361-\363]
-# oxF0 <- '\360'
-# ox90_0xBF <- [\220-\277]
-# oxEE_oxEF <- [\356-\357]
-# oxED <- '\355'
-# ox80_ox9F <- [\200-\237]
-# oxE1_oxEC <- [\341-\354]
-# oxE0 <- '\340'
-# oxA0_oxBF <- [\240-\277]
-# oxC2_oxDF <- [\302-\337]
-
-# # From https://lemire.me/blog/2018/05/09/how-quickly-can-you-check-that-a-string-is-valid-unicode-utf-8/
-# # First Byte      Second Byte     Third Byte      Fourth Byte
-# # [0x00,0x7F]
-# # [0xC2,0xDF]     [0x80,0xBF]
-# #    0xE0         [0xA0,0xBF]     [0x80,0xBF]
-# # [0xE1,0xEC]     [0x80,0xBF]     [0x80,0xBF]
-# #    0xED         [0x80,0x9F]     [0x80,0xBF]
-# # [0xEE,0xEF]     [0x80,0xBF]     [0x80,0xBF]
-# #    0xF0         [0x90,0xBF]     [0x80,0xBF]     [0x80,0xBF]
-# # [0xF1,0xF3]     [0x80,0xBF]     [0x80,0xBF]     [0x80,0xBF]
-# #    0xF4         [0x80,0x8F]     [0x80,0xBF]     [0x80,0xBF]
-
-# mb_utf8_literal <-
-#        oxF4      ox80_ox8F ox80_oxBF ox80_oxBF
-#      / oxF1_oxF3 ox80_oxBF ox80_oxBF ox80_oxBF
-#      / oxF0      ox90_0xBF ox80_oxBF ox80_oxBF
-#      / oxEE_oxEF ox80_oxBF ox80_oxBF
-#      / oxED      ox80_ox9F ox80_oxBF
-#      / oxE1_oxEC ox80_oxBF ox80_oxBF
-#      / oxE0      oxA0_oxBF ox80_oxBF
-#      / oxC2_oxDF ox80_oxBF
-
-# ascii_char_not_nl_slash_squote <- [\000-\011\013-\046\050-\133\135-\177]
-
-# char_escape
-#     <- "\\x" hex hex
-#      / "\\u{" hex+ "}"
-#      / "\\" [nr\\t'"]
-
-# char_char
-#     <- mb_utf8_literal
-#      / char_escape
-#      / ascii_char_not_nl_slash_squote
-
-# string_char <- char_escape / [^\\"\n]
-
-# id_char <- char_escape / [^\\`\n]
-
-# Identifier <- (!keyword [A-Za-z_] [A-Za-z0-9_]* skip) / BACKTICK id_char BACKTICK / KEYWORD_this
-
-
-################## identifier ranges pog
-# 0080..009F
-# 00A1..00A7
-# 00A9
-# 00AB..00AC
-# 00AE
-# 00B0..00B1
-# 00B6
-# 00BB
-# 00BF
-# 00D7
-# 00F7
-# 200E..2029
-# 2030..203E
-# 2041..2053
-# 2055..205E
-# 2190..245F
-# 2500..2775
-# 2794..2BFF
-# 2E00..2E7F
-# 3001..3003
-# 3008..3020
-# 3030
-# D800..F8FF
-# FD3E..FD3F
-# FDD0..FDEF
-# FE45..FE46
-# FFFE..FFFF
-# 1FFFE..1FFFF
-# 2FFFE..2FFFF
-# 3FFFE..3FFFF
-# 4FFFE..4FFFF
-# 5FFFE..5FFFF
-# 6FFFE..6FFFF
-# 7FFFE..7FFFF
-# 8FFFE..8FFFF
-# 9FFFE..9FFFF
-# AFFFE..AFFFF
-# BFFFE..BFFFF
-# CFFFE..CFFFF
-# DFFFE..DFFFF
-# EFFFE..10FFFF
