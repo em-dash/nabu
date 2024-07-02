@@ -5,10 +5,6 @@ const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 const log = std.log;
-const tokenize = @import("tokenization.zig");
-const Tokenizer = tokenize.Tokenizer;
-const Token = tokenize.Token;
-const ast = @import("ast.zig");
 const fmt = std.fmt;
 
 const runtime = @import("runtime.zig");
