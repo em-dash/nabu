@@ -1,4 +1,4 @@
-const CompilationStage = enum {
+pub const CompilationStage = enum {
     tokenization,
     ast,
     ast_check,
@@ -8,7 +8,7 @@ const CompilationStage = enum {
     full,
 };
 
-const CompileOptions = struct {
+pub const CompileOptions = struct {
     target_stage: CompilationStage = .full,
     filename: []const u8 = &[_]u8{},
 };

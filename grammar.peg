@@ -274,6 +274,8 @@ LPAREN <- '(' skip
 MINUSEQUALS <- '-=' skip
 MINUSPERCENTEQUALS <- '-%=' skip
 MINUSPIPEEQUALS <- '-|=' skip
+MINUSPIPE <- '-|' ![=] skip
+MINUSPERCENT <- '-%' ![=] skip
 MINUS <- '-' skip
 OCTOTHORPE <- '#' skip
 PERCENTEQUALS <- '%=' skip

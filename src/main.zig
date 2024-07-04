@@ -8,6 +8,7 @@ fn processArgs(allocator: std.mem.Allocator) !CliArgs {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
+    _ = args.next(); // Discard executable path
     var seen_filename = false;
     var result: CliArgs = .{};
     while (args.next()) |arg| {
@@ -21,7 +22,10 @@ fn processArgs(allocator: std.mem.Allocator) !CliArgs {
 
             }
         } else { // This should be the filename.
-            if (seen_filename) return error.InvalidArgument;
+            if (seen_filename) {
+                std.log.err("Invalid argument: {s}", .{arg});
+                return error.InvalidArgument;
+            }
 
             result.filename = try allocator.dupe(u8, arg);
             errdefer allocator.free(result.filename);
@@ -32,11 +36,46 @@ fn processArgs(allocator: std.mem.Allocator) !CliArgs {
     return result;
 }
 
-fn compileAndRun(options: helpers.CompileOptions) !void {
-    _ = options;
+fn compileAndRun(allocator: std.mem.Allocator, options: helpers.CompileOptions) !void {
+    // Load the file.
+    try Source.initNormalization(allocator);
+    defer Source.deinitNormalization();
+
+    var source = try Source.create(allocator, options.filename);
+    try source.readAndNormalize(allocator);
+
+    // Tokenization
+    try tokenization.initPropsData(allocator);
+    defer tokenization.deinitPropsData();
+    const tokens = tokenization.tokenizeSource(allocator, source);
+    _ = try tokens;
+
+    if (options.target_stage == .tokenization) return;
+    // Parsing
+    if (true) std.debug.panic("not implemented", .{});
+    if (options.target_stage == .ast) return;
+    // AST check
+    if (true) std.debug.panic("not implemented", .{});
+    if (options.target_stage == .ast_check) return;
+    if (true) std.debug.panic("not implemented", .{});
+    if (options.target_stage == .cfir) return;
+    if (true) std.debug.panic("not implemented", .{});
+    if (options.target_stage == .oir) return;
+    if (true) std.debug.panic("not implemented", .{});
+    if (options.target_stage == .code_gen) return;
+    if (true) std.debug.panic("not implemented", .{});
 }
 
-pub fn main() !void {
+const ExitCode = enum(u8) {
+    ok = 0,
+    no_input_file = 10,
+
+    inline fn int(self: ExitCode) u8 {
+        return @intFromEnum(self);
+    }
+};
+
+pub fn main() !u8 {
     std.log.debug("version: TODO get the version from the build system somehow", .{});
     std.log.debug("zig version: {s}", .{builtin.zig_version_string});
 
@@ -46,15 +85,21 @@ pub fn main() !void {
     const args = try processArgs(gpa);
     defer gpa.free(args.filename);
 
+    if (args.filename.len == 0) {
+        return ExitCode.no_input_file.int();
+    }
+
     const compile_options = blk: {
-        var result: helpers.CompileOptions;
+        var result: helpers.CompileOptions = .{};
         result.filename = args.filename;
         if (args.tokenize_only) result.target_stage = .tokenization;
         if (args.parse_only) result.target_stage = .ast;
 
         break :blk result;
     };
-    try compileAndRun(compile_options);
+    try compileAndRun(gpa, compile_options);
+
+    return ExitCode.ok.int();
 }
 
 test {
@@ -68,4 +113,7 @@ test {
 
 const std = @import("std");
 const builtin = @import("builtin");
+
 const helpers = @import("helpers.zig");
+const Source = @import("Source.zig");
+const tokenization = @import("tokenization.zig");
