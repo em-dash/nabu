@@ -84,7 +84,7 @@ ShiftExpression <- AddExpression (ShiftOp AddExpression)*
 ShiftOp <- LESSLESS / GREATERGREATER / LESSLESSPIPE
 
 AddExpression <- MultiplyExpression (AddOp MultiplyExpression)*
-AddOp <- PLUS / MINUS / PLUSPLUS / PLUSPIPE / PLUSPERCENT
+AddOp <- PLUS / MINUS / PLUSPLUS / PLUSPIPE / PLUSPERCENT / MINUSPIPE / MINUSPERCENT
 
 MultiplyExpression <- PrefixExpression (MultiplyOp PrefixExpression)*
 MultiplyOp <- ASTERISK / FORWARDSLASH / PERCENT / ASTERISKASTERISK / ASTERISKPERCENT / ASTERISKPIPE
@@ -131,7 +131,7 @@ MapLiteralItem <- Expression COLON Expression
 StructLiteral <- (ScopedIdentifier / DOT) LBRACE (StructLiteralItem COMMA)* StructLiteralItem? RBRACE
 StructLiteralItem <- DOT IDENTIFIER EQUALS Expression
 
-IfExpression <- KEYWORD_if RPAREN Expression LPAREN PtrPayload?
+IfExpression <- KEYWORD_if LPAREN Expression RPAREN PtrPayload? Expression
     (KEYWORD_else Payload? Expression)?
 
 LoopExpression <- ForExpression / WhileExpression
