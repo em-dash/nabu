@@ -42,7 +42,8 @@ fn compileAndRun(allocator: std.mem.Allocator, options: helpers.CompileOptions) 
     defer Source.deinitNormalization();
 
     var source = try Source.create(allocator, options.filename);
-    try source.readAndNormalize(allocator);
+    defer source.destroy();
+    try source.readAndNormalize();
 
     // Tokenization
     try tokenization.initPropsData(allocator);

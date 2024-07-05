@@ -75,11 +75,12 @@ pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const To
                         } else if (cp.code == ')') {
                             token.tag = .r_paren;
                         } else {
-                            
+                            // errors.print();
                         }
-                        token.end = iterator.i + 1;
+                        _ = iterator.next();
+                        token.end = iterator.i;
                         break :token_loop;
-                    };
+                    }
                 },
                 .ampersand => {
                     const cp = maybe_cp orelse break :loop;
@@ -182,8 +183,6 @@ pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const To
                     _ = cp;
                 },
             }
-
-            _ = iterator.next();
         }
         try list.append(allocator, token);
     }
@@ -293,3 +292,4 @@ const code_point = @import("code_point");
 const PropsData = @import("PropsData");
 
 const Source = @import("Source.zig");
+const errors = @import("errors.zig");
