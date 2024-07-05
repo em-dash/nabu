@@ -1,12 +1,12 @@
 var props_data: PropsData = undefined;
 
 pub fn initPropsData(allocator: std.mem.Allocator) !void {
-    std.log.debug("initializing PropsData...", .{});
+    std.log.debug("initializing property data...", .{});
     props_data = try PropsData.init(allocator);
 }
 
 pub fn deinitPropsData() void {
-    std.log.debug("deinitializing PropsData...", .{});
+    std.log.debug("deinitializing property data...", .{});
     props_data.deinit();
 }
 
@@ -20,7 +20,6 @@ pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const To
         var token: Token = undefined;
         token.start = iterator.i;
         var state = State.start;
-        _ = &state;
 
         token_loop: while (true) {
             const maybe_cp = iterator.peek();
@@ -55,7 +54,10 @@ pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const To
                         state = .plus
                     else if (props_data.isXidStart(cp.code))
                         state = .word
-                    else if (cp.code == '"')
+                    else if (props_data.isWhitespace(cp.code)) {
+                        _ = iterator.next();
+                        token.start = iterator.i;
+                    } else if (cp.code == '"')
                         state = .string_literal
                     else {
                         if (cp.code == ':') {
@@ -75,7 +77,8 @@ pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const To
                         } else if (cp.code == ')') {
                             token.tag = .r_paren;
                         } else {
-                            // errors.print();
+                            try errors.print(.{ .invalid_character = iterator.i }, source);
+                            return error.InvalidCharacter;
                         }
                         _ = iterator.next();
                         token.end = iterator.i;

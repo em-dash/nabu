@@ -1,11 +1,14 @@
 const stderr = std.io.getStdErr().writer();
 
-pub fn print(err: Error, source: Source) void {
-    stderr.print("compile error: ", .{});
+pub fn print(err: Error, source: *Source) !void {
+    try stderr.print("compile error: ", .{});
     switch (err) {
         .invalid_character => |index| {
-            const location = source.getLocation(index);
-            try stderr.print("invalid character on line {}, column {}\n", .{});
+            const location = try source.getLocation(index);
+            try stderr.print("invalid character on line {}, column {}\n", .{
+                location.line,
+                location.column,
+            });
             const slice = source.getLineSlice(location.line);
             try stderr.print("{s}", .{slice});
         },

@@ -48,8 +48,8 @@ fn compileAndRun(allocator: std.mem.Allocator, options: helpers.CompileOptions) 
     // Tokenization
     try tokenization.initPropsData(allocator);
     defer tokenization.deinitPropsData();
-    const tokens = tokenization.tokenizeSource(allocator, source);
-    _ = try tokens;
+    const tokens = try tokenization.tokenizeSource(allocator, source);
+    _ = tokens;
 
     if (options.target_stage == .tokenization) return;
     // Parsing
@@ -101,15 +101,6 @@ pub fn main() !u8 {
     try compileAndRun(gpa, compile_options);
 
     return ExitCode.ok.int();
-}
-
-test {
-    _ = @import("Source.zig");
-    // _ = @import("Tokenizer.zig");
-    // _ = @import("ast.zig");
-    _ = @import("types.zig");
-    _ = @import("bytecode.zig");
-    _ = @import("runtime.zig");
 }
 
 const std = @import("std");

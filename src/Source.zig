@@ -11,29 +11,32 @@ normalized: []u8,
 line_starts: ?[]u32,
 
 pub inline fn getLineSlice(self: Source, line: u32) []u8 {
-    if (line < self.line_starts.len - 1)
-        return self.normalized[self.line_starts[line]..self.line_starts[line + 1]];
-    return self.normalized[self.line_starts[line]..];
+    if (line < self.line_starts.?.len - 1)
+        return self.normalized[self.line_starts.?[line]..self.line_starts.?[line + 1]];
+    return self.normalized[self.line_starts.?[line]..];
 }
 
 pub fn getLocation(self: *Source, target_index: u32) !Location {
-    try self.calculateIndicies();
+    try self.calculateLineIndicies();
+    // TODO calculate column with zg
 
-    for (self.line_starts, 0..) |index, l| {
-        // if (index > target_index) return self.normalized[index - 1 .. index];
-        // TODO calculate column with zg
-        if (index > target_index) return .{ .line = l - 1, .column = 0 };
+    if (self.line_starts.?.len == 1) return .{ .line = 0, .column = 9999 };
+
+    for (self.line_starts.?, 0..) |index, l| {
+        if (index > target_index) return .{ .line = @as(u32, @intCast(l - 1)), .column = 9999 };
     }
 
     unreachable;
 }
 
-fn calculateIndicies(self: *Source) !void {
+fn calculateLineIndicies(self: *Source) !void {
     if (self.line_starts != null) return;
 
     var list: std.ArrayListUnmanaged(u32) = .{};
     var iterator = code_point.Iterator{ .bytes = self.normalized };
 
+    // The first line starts at index 0.
+    try list.append(self.allocator, 0);
     while (iterator.next()) |cp| {
         if (cp.code == '\n') try list.append(self.allocator, cp.offset + 1);
     }
@@ -41,7 +44,9 @@ fn calculateIndicies(self: *Source) !void {
     // If the last codepoint was '\n', then we have added an invalid line start to our list.
     // Remove it.
     if (list.items[list.items.len - 1] >= self.normalized.len)
-        _ = list.items.pop();
+        _ = list.pop();
+
+    self.line_starts = try list.toOwnedSlice(self.allocator);
 }
 
 pub fn create(allocator: std.mem.Allocator, filename: []const u8) !*Source {
@@ -67,7 +72,7 @@ pub fn destroy(self: *Source) void {
 
 pub fn readAndNormalize(self: *Source) !void {
     std.log.debug("reading from {s}...", .{self.filename});
-    const file = try std.fs.cwd().createFile(self.filename, .{ .read = true });
+    const file = try std.fs.cwd().openFile(self.filename, .{});
     defer file.close();
 
     try file.reader().readAllArrayList(&self.raw, std.math.maxInt(usize));
