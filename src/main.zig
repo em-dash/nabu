@@ -1,6 +1,7 @@
 const CliArgs = struct {
     filename: []const u8 = &[_]u8{},
     tokenize_only: bool = false,
+    debug_tokens: bool = false,
     parse_only: bool = false,
 };
 
@@ -17,7 +18,9 @@ fn processArgs(allocator: std.mem.Allocator) !CliArgs {
                 if (std.mem.eql(u8, arg[2..], "tokenize-only"))
                     result.tokenize_only = true
                 else if (std.mem.eql(u8, arg[2..], "parse-only"))
-                    result.parse_only = true;
+                    result.parse_only = true
+                else if (std.mem.eql(u8, arg[2..], "debug-tokens"))
+                    result.debug_tokens = true;
             } else { // Short arguments
 
             }
@@ -48,7 +51,7 @@ fn compileAndRun(allocator: std.mem.Allocator, options: helpers.CompileOptions) 
     // Tokenization
     try tokenization.initPropsData(allocator);
     defer tokenization.deinitPropsData();
-    const tokens = try tokenization.tokenizeSource(allocator, source);
+    const tokens = try tokenization.tokenizeSource(allocator, source, options.debug_tokens);
     _ = tokens;
 
     if (options.target_stage == .tokenization) return;
@@ -93,6 +96,7 @@ pub fn main() !u8 {
     const compile_options = blk: {
         var result: helpers.CompileOptions = .{};
         result.filename = args.filename;
+        result.debug_tokens = args.debug_tokens;
         if (args.tokenize_only) result.target_stage = .tokenization;
         if (args.parse_only) result.target_stage = .ast;
 

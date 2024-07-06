@@ -11,4 +11,5 @@ pub const CompilationStage = enum {
 pub const CompileOptions = struct {
     target_stage: CompilationStage = .full,
     filename: []const u8 = &[_]u8{},
+    debug_tokens: bool = false,
 };

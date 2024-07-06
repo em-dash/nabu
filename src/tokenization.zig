@@ -10,7 +10,11 @@ pub fn deinitPropsData() void {
     props_data.deinit();
 }
 
-pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const Token {
+pub fn tokenizeSource(
+    allocator: std.mem.Allocator,
+    source: *Source,
+    debug_info: bool,
+) ![]const Token {
     std.log.debug("tokenizing...", .{});
 
     var list: std.ArrayListUnmanaged(Token) = .{};
@@ -22,170 +26,511 @@ pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const To
         var state = State.start;
 
         token_loop: while (true) {
-            const maybe_cp = iterator.peek();
             switch (state) {
                 .start => {
-                    const cp = maybe_cp orelse break :loop;
-                    if (cp.code == '&')
-                        state = .ampersand
-                    else if (cp.code == '*')
-                        state = .asterisk
-                    else if (cp.code == '^')
-                        state = .caret
-                    else if (cp.code == '.')
-                        state = .dot
-                    else if (cp.code == '=')
-                        state = .equals
-                    else if (cp.code == '!')
-                        state = .exclam
-                    else if (cp.code == '/')
-                        state = .forwardslash
-                    else if (cp.code == '>')
-                        state = .greater
-                    else if (cp.code == '<')
-                        state = .less
-                    else if (cp.code == '-')
-                        state = .minus
-                    else if (cp.code == '%')
-                        state = .percent
-                    else if (cp.code == '|')
-                        state = .pipe
-                    else if (cp.code == '+')
-                        state = .plus
-                    else if (props_data.isXidStart(cp.code))
-                        state = .word
-                    else if (props_data.isWhitespace(cp.code)) {
+                    const cp = iterator.peek() orelse break :loop;
+                    if (cp.code == '&') {
+                        state = .ampersand;
+                        continue :token_loop;
+                    } else if (cp.code == '*') {
+                        state = .asterisk;
+                        continue :token_loop;
+                    } else if (cp.code == '^') {
+                        state = .caret;
+                        continue :token_loop;
+                    } else if (cp.code == '.') {
+                        state = .dot;
+                        continue :token_loop;
+                    } else if (cp.code == '=') {
+                        state = .equals;
+                        continue :token_loop;
+                    } else if (cp.code == '!') {
+                        state = .exclam;
+                        continue :token_loop;
+                    } else if (cp.code == '/') {
+                        state = .forwardslash;
+                        continue :token_loop;
+                    } else if (cp.code == '>') {
+                        state = .greater;
+                        continue :token_loop;
+                    } else if (cp.code == '<') {
+                        state = .less;
+                        continue :token_loop;
+                    } else if (cp.code == '-') {
+                        state = .minus;
+                        continue :token_loop;
+                    } else if (cp.code == '%') {
+                        state = .percent;
+                        continue :token_loop;
+                    } else if (cp.code == '|') {
+                        state = .pipe;
+                        continue :token_loop;
+                    } else if (cp.code == '+') {
+                        state = .plus;
+                        continue :token_loop;
+                    } else if (props_data.isXidStart(cp.code)) {
+                        state = .word;
+                        continue :token_loop;
+                    } else if (props_data.isWhitespace(cp.code)) {
                         _ = iterator.next();
                         token.start = iterator.i;
-                    } else if (cp.code == '"')
-                        state = .string_literal
-                    else {
-                        if (cp.code == ':') {
-                            token.tag = .colon;
-                        } else if (cp.code == ',') {
-                            token.tag = .colon;
-                        } else if (cp.code == '{') {
-                            token.tag = .l_brace;
-                        } else if (cp.code == '[') {
-                            token.tag = .l_bracket;
-                        } else if (cp.code == '(') {
-                            token.tag = .l_paren;
-                        } else if (cp.code == '}') {
-                            token.tag = .r_brace;
-                        } else if (cp.code == ']') {
-                            token.tag = .r_bracket;
-                        } else if (cp.code == ')') {
-                            token.tag = .r_paren;
-                        } else {
-                            try errors.print(.{ .invalid_character = iterator.i }, source);
-                            return error.InvalidCharacter;
-                        }
+                    } else if (cp.code == '"') {
                         _ = iterator.next();
+                        state = .string_literal;
+                        continue :token_loop;
+                    } else if (cp.code == ':') {
+                        _ = iterator.next();
+                        token.tag = .colon;
                         token.end = iterator.i;
                         break :token_loop;
+                    } else if (cp.code == ',') {
+                        _ = iterator.next();
+                        token.tag = .colon;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else if (cp.code == '{') {
+                        _ = iterator.next();
+                        token.tag = .l_brace;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else if (cp.code == '[') {
+                        _ = iterator.next();
+                        token.tag = .l_bracket;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else if (cp.code == '(') {
+                        _ = iterator.next();
+                        token.tag = .l_paren;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else if (cp.code == '}') {
+                        _ = iterator.next();
+                        token.tag = .r_brace;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else if (cp.code == ']') {
+                        _ = iterator.next();
+                        token.tag = .r_bracket;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else if (cp.code == ')') {
+                        _ = iterator.next();
+                        token.tag = .r_paren;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else if (cp.code == ';') {
+                        _ = iterator.next();
+                        token.tag = .r_paren;
+                        token.end = iterator.i;
+                        break :token_loop;
+                    } else {
+                        try errors.print(.{ .invalid_character = iterator.i }, source);
+                        return error.InvalidCharacter;
                     }
                 },
                 .ampersand => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .ampersand_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .ampersand;
+                    break :token_loop;
                 },
                 .asterisk => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '%') {
+                            _ = iterator.next();
+                            state = .asterisk_percent;
+                            continue :token_loop;
+                        } else if (cp.code == '|') {
+                            _ = iterator.next();
+                            state = .asterisk_pipe;
+                            continue :token_loop;
+                        } else if (cp.code == '*') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .asterisk_asterisk;
+                            break :token_loop;
+                        } else if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .asterisk_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .asterisk;
+                    break :token_loop;
                 },
                 .asterisk_percent => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .asterisk_percent_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .asterisk_percent;
+                    break :token_loop;
                 },
                 .asterisk_pipe => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .asterisk_pipe_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .asterisk_pipe;
+                    break :token_loop;
                 },
                 .caret => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .caret_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .caret;
+                    break :token_loop;
                 },
                 .dot => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '?') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .dot_questionmark;
+                            break :token_loop;
+                        } else if (cp.code == '*') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .dot_asterisk;
+                            break :token_loop;
+                        } else if (cp.code == '.') {
+                            _ = iterator.next();
+                            state = .dot_dot;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .dot;
+                    break :token_loop;
                 },
                 .dot_dot => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '.') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .dot_dot_dot;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .dot_dot;
+                    break :token_loop;
                 },
                 .equals => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .equals_equals;
+                            break :token_loop;
+                        } else if (cp.code == '>') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .equals_greater;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .equals;
+                    break :token_loop;
                 },
                 .exclam => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .exclam_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .exclam;
+                    break :token_loop;
                 },
                 .forwardslash => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .forwardslash_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .forwardslash;
+                    break :token_loop;
                 },
                 .greater => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .greater_equals;
+                            break :token_loop;
+                        } else if (cp.code == '>') {
+                            _ = iterator.next();
+                            state = .greater_greater;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .greater;
+                    break :token_loop;
                 },
                 .greater_greater => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .greater_greater_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .greater_greater;
+                    break :token_loop;
                 },
                 .less => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .less_equals;
+                            break :token_loop;
+                        } else if (cp.code == '<') {
+                            _ = iterator.next();
+                            state = .less_less;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .less;
+                    break :token_loop;
                 },
                 .less_less => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .less_less_equals;
+                            break :token_loop;
+                        } else if (cp.code == '|') {
+                            _ = iterator.next();
+                            state = .less_less_pipe;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .less_less;
+                    break :token_loop;
                 },
                 .less_less_pipe => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .less_less_pipe_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .less_less_pipe;
+                    break :token_loop;
                 },
                 .minus => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .minus_equals;
+                            break :token_loop;
+                        } else if (cp.code == '%') {
+                            _ = iterator.next();
+                            state = .minus_percent;
+                            continue :token_loop;
+                        } else if (cp.code == '|') {
+                            _ = iterator.next();
+                            state = .minus_pipe;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .minus;
+                    break :token_loop;
                 },
                 .minus_percent => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .minus_percent_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .minus_percent;
+                    break :token_loop;
                 },
                 .minus_pipe => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .minus_pipe_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .minus_pipe;
+                    break :token_loop;
                 },
                 .percent => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .percent_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .percent;
+                    break :token_loop;
                 },
                 .pipe => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .pipe_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .pipe;
+                    break :token_loop;
                 },
                 .plus => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .plus_equals;
+                            break :token_loop;
+                        } else if (cp.code == '%') {
+                            _ = iterator.next();
+                            state = .plus_percent;
+                            continue :token_loop;
+                        } else if (cp.code == '|') {
+                            _ = iterator.next();
+                            state = .plus_pipe;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .plus;
+                    break :token_loop;
                 },
                 .plus_percent => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .plus_percent_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .plus_percent;
+                    break :token_loop;
                 },
                 .plus_pipe => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '=') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .plus_pipe_equals;
+                            break :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .plus_pipe;
+                    break :token_loop;
                 },
                 .word => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    if (iterator.peek()) |cp| {
+                        if (props_data.isXidContinue(cp.code)) {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = keywords.get(source.normalized[token.start..token.end]) orelse
+                        .identifier;
+                    break :token_loop;
                 },
                 .string_literal => {
-                    const cp = maybe_cp orelse break :loop;
-                    _ = cp;
+                    //
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '"') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .string_literal;
+                            break :token_loop;
+                        } else if (cp.code == '\\') {
+                            _ = iterator.next();
+                            state = .string_literal_backslash;
+                            continue :token_loop;
+                        } else {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        }
+                    }
+                    try errors.print(.{ .mismatched_quotes = iterator.i }, source);
+                    return error.MismatchedQuotes;
+                },
+                .string_literal_backslash => {
+                    //
+                    if (iterator.peek()) |_| {
+                        _ = iterator.next();
+                        state = .string_literal;
+                        continue :token_loop;
+                    }
+                    try errors.print(.{ .mismatched_quotes = iterator.i }, source);
+                    return error.MismatchedQuotes;
                 },
             }
+        }
+        if (debug_info) {
+            std.log.debug(
+                "found token: {} `{s}`",
+                .{ token.tag, source.normalized[token.start..token.end] },
+            );
         }
         try list.append(allocator, token);
     }
@@ -193,8 +538,21 @@ pub fn tokenizeSource(allocator: std.mem.Allocator, source: *Source) ![]const To
     return try list.toOwnedSlice(allocator);
 }
 
+const keywords = k: {
+    // This is a little silly but why not
+    const Tuple = std.meta.Tuple(&[_]type{ []const u8, Tag });
+    var list: []const Tuple = &[_]Tuple{};
+    for (std.enums.values(Tag)) |v| {
+        const t = @tagName(v);
+        if (std.mem.startsWith(u8, t, "keyword_")) {
+            list = list ++ &[_]Tuple{.{ t[8..], v }};
+        }
+    }
+    break :k std.StaticStringMap(Tag).initComptime(list);
+};
+
 const Token = struct {
-    // Such that `Source.normal[start..end]` gets a slice of this token.
+    // Such that `Source.normalized[start..end]` gets a slice of this token.
     start: u32,
     end: u32,
     tag: Tag,
@@ -210,6 +568,7 @@ const Tag = enum {
     asterisk_pipe_equals,
     asterisk_pipe,
     asterisk,
+    string_literal,
     caret_equals,
     caret,
     colon,
@@ -217,6 +576,7 @@ const Tag = enum {
     dot_asterisk,
     dot_dot_dot,
     dot_dot,
+    identifier,
     dot_questionmark,
     dot,
     equals_equals,
@@ -241,7 +601,9 @@ const Tag = enum {
     l_paren,
     minus_equals,
     minus_percent_equals,
+    minus_percent,
     minus_pipe_equals,
+    minus_pipe,
     minus,
     octothorpe,
     percent_equals,
@@ -259,6 +621,30 @@ const Tag = enum {
     r_bracket,
     r_paren,
     semicolon,
+    keyword_module,
+    keyword_interface,
+    keyword_enum,
+    keyword_fn,
+    keyword_struct,
+    keyword_var,
+    keyword_const,
+    keyword_if,
+    keyword_else,
+    keyword_defer,
+    keyword_errdefer,
+    keyword_error,
+    keyword_break,
+    keyword_continue,
+    keyword_switch,
+    keyword_while,
+    keyword_for,
+    keyword_orelse,
+    keyword_catch,
+    keyword_or,
+    keyword_and,
+    keyword_try,
+    keyword_return,
+    keyword_implements,
 };
 
 const State = enum {
@@ -288,6 +674,7 @@ const State = enum {
     plus_pipe,
     word,
     string_literal,
+    string_literal_backslash,
 };
 
 const std = @import("std");
