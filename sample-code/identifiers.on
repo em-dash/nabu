@@ -1,0 +1,7 @@
+
+const français = "français";
+const 小熊貓 = "^_^";
+const 안녕하세요 = "hello";
+const שלום = "peace";
+const `lol lmao` = 1234;
+const `const` = 12345;

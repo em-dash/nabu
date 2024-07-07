@@ -1,0 +1,21 @@
+
+const a = 1234;
+const b = 0x1234_abcd;
+const c = 0o1234;
+const d = 0b1010_1010;
+const e = 1234.5678;
+const f = 0xcaca.6969;
+const g = 10.0e-6;
+const h = 10.0E-6;
+const i = 10.0e+6;
+const j = 10.0E+6;
+const k = 10.0e6;
+const l = 10.0E6;
+const m = 0xf0.0p-6;
+const n = 0xf0.0P-6;
+const o = 0xf0.0p+6;
+const p = 0xf0.0P+6;
+const q = 0xf0.0p6;
+const r = 0xf0.0P6;
+
+const what = 0xf0.0e+6;

@@ -1,0 +1,4 @@
+
+fn main() void {
+	print("你好，世界);
+}

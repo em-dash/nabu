@@ -30,53 +30,79 @@ pub fn tokenizeSource(
                 .start => {
                     const cp = iterator.peek() orelse break :loop;
                     if (cp.code == '&') {
+                        _ = iterator.next();
                         state = .ampersand;
                         continue :token_loop;
                     } else if (cp.code == '*') {
+                        _ = iterator.next();
                         state = .asterisk;
                         continue :token_loop;
                     } else if (cp.code == '^') {
+                        _ = iterator.next();
                         state = .caret;
                         continue :token_loop;
                     } else if (cp.code == '.') {
+                        _ = iterator.next();
                         state = .dot;
                         continue :token_loop;
                     } else if (cp.code == '=') {
+                        _ = iterator.next();
                         state = .equals;
                         continue :token_loop;
                     } else if (cp.code == '!') {
+                        _ = iterator.next();
                         state = .exclam;
                         continue :token_loop;
                     } else if (cp.code == '/') {
+                        _ = iterator.next();
                         state = .forwardslash;
                         continue :token_loop;
                     } else if (cp.code == '>') {
+                        _ = iterator.next();
                         state = .greater;
                         continue :token_loop;
                     } else if (cp.code == '<') {
+                        _ = iterator.next();
                         state = .less;
                         continue :token_loop;
                     } else if (cp.code == '-') {
+                        _ = iterator.next();
                         state = .minus;
                         continue :token_loop;
                     } else if (cp.code == '%') {
+                        _ = iterator.next();
                         state = .percent;
                         continue :token_loop;
                     } else if (cp.code == '|') {
+                        _ = iterator.next();
                         state = .pipe;
                         continue :token_loop;
                     } else if (cp.code == '+') {
+                        _ = iterator.next();
                         state = .plus;
                         continue :token_loop;
                     } else if (props_data.isXidStart(cp.code)) {
+                        _ = iterator.next();
                         state = .word;
                         continue :token_loop;
                     } else if (props_data.isWhitespace(cp.code)) {
                         _ = iterator.next();
                         token.start = iterator.i;
+                    } else if (cp.code >= '1' and cp.code <= '9') {
+                        _ = iterator.next();
+                        state = .number;
+                        continue :token_loop;
+                    } else if (cp.code == '0') {
+                        _ = iterator.next();
+                        state = .zero;
+                        continue :token_loop;
                     } else if (cp.code == '"') {
                         _ = iterator.next();
                         state = .string_literal;
+                        continue :token_loop;
+                    } else if (cp.code == '`') {
+                        _ = iterator.next();
+                        state = .universal_identifier;
                         continue :token_loop;
                     } else if (cp.code == ':') {
                         _ = iterator.next();
@@ -515,8 +541,11 @@ pub fn tokenizeSource(
                     return error.MismatchedQuotes;
                 },
                 .string_literal_backslash => {
-                    //
-                    if (iterator.peek()) |_| {
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '\n') {
+                            try errors.print(.{ .mismatched_quotes = iterator.i }, source);
+                            return error.MismatchedQuotes;
+                        }
                         _ = iterator.next();
                         state = .string_literal;
                         continue :token_loop;
@@ -524,12 +553,158 @@ pub fn tokenizeSource(
                     try errors.print(.{ .mismatched_quotes = iterator.i }, source);
                     return error.MismatchedQuotes;
                 },
+                .universal_identifier => {
+                    //
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '`') {
+                            _ = iterator.next();
+                            token.end = iterator.i;
+                            token.tag = .identifier;
+                            break :token_loop;
+                        } else if (cp.code == '\\') {
+                            _ = iterator.next();
+                            state = .universal_identifier_backslash;
+                            continue :token_loop;
+                        } else {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        }
+                    }
+                    try errors.print(.{ .mismatched_backticks = iterator.i }, source);
+                    return error.MismatchedBackticks;
+                },
+                .universal_identifier_backslash => {
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '\n') {
+                            try errors.print(.{ .mismatched_backticks = iterator.i }, source);
+                            return error.MismatchedBackticks;
+                        }
+                        _ = iterator.next();
+                        state = .universal_identifier;
+                        continue :token_loop;
+                    }
+                    try errors.print(.{ .mismatched_backticks = iterator.i }, source);
+                    return error.MismatchedBackticks;
+                },
+                .zero => {
+                    if (iterator.peek()) |cp| {
+                        if ((cp.code >= '0' and cp.code <= '9') or cp.code == '_') {
+                            _ = iterator.next();
+                            state = .number;
+                            continue :token_loop;
+                        } else if (cp.code == 'x') {
+                            _ = iterator.next();
+                            state = .hex;
+                            continue :token_loop;
+                        } else if (cp.code == 'b') {
+                            _ = iterator.next();
+                            state = .number;
+                            continue :token_loop;
+                        } else if (cp.code == 'o') {
+                            _ = iterator.next();
+                            state = .number;
+                            continue :token_loop;
+                        }
+                    }
+                },
+                .number => {
+                    if (iterator.peek()) |cp| {
+                        if ((cp.code >= '0' and cp.code <= '9') or cp.code == '_') {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        } else if (cp.code == '.') {
+                            _ = iterator.next();
+                            state = .number_float;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .integer;
+                    break :token_loop;
+                },
+                .number_float => {
+                    if (iterator.peek()) |cp| {
+                        if ((cp.code >= '0' and cp.code <= '9') or cp.code == '_') {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        } else if (cp.code == 'E' or cp.code == 'e') {
+                            _ = iterator.next();
+                            state = .number_float_e;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .integer;
+                    break :token_loop;
+                },
+                .number_float_e => {
+                    if (iterator.peek()) |cp| {
+                        if ((cp.code >= '0' and cp.code <= '9') or
+                            cp.code == '+' or
+                            cp.code == '-')
+                        {
+                            _ = iterator.next();
+                            state = .number_float;
+                            continue :token_loop;
+                        }
+                    }
+                    try errors.print(.{ .invalid_float_literal = token.start }, source);
+                    return error.InvalidFloatLiteral;
+                },
+                .hex => {
+                    if (iterator.peek()) |cp| {
+                        if ((cp.code >= '0' and cp.code <= '9') or
+                            (cp.code >= 'A' and cp.code <= 'F') or
+                            (cp.code >= 'a' and cp.code <= 'f') or
+                            cp.code == '_')
+                        {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        } else if (cp.code == '.') {
+                            _ = iterator.next();
+                            state = .hex_float;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .integer;
+                    break :token_loop;
+                },
+                .hex_float => {
+                    if (iterator.peek()) |cp| {
+                        if ((cp.code >= '0' and cp.code <= '9') or cp.code == '_') {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        } else if (cp.code == 'P' or cp.code == 'p') {
+                            _ = iterator.next();
+                            state = .hex_float_p;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .integer;
+                    break :token_loop;
+                },
+                .hex_float_p => {
+                    if (iterator.peek()) |cp| {
+                        if ((cp.code >= '0' and cp.code <= '9') or
+                            cp.code == '+' or
+                            cp.code == '-')
+                        {
+                            _ = iterator.next();
+                            state = .hex_float;
+                            continue :token_loop;
+                        }
+                    }
+                    try errors.print(.{ .invalid_float_literal = token.start }, source);
+                    return error.InvalidFloatLiteral;
+                },
             }
         }
         if (debug_info) {
             std.log.debug(
-                "found token: {} `{s}`",
-                .{ token.tag, source.normalized[token.start..token.end] },
+                "found token: {s:.>20} {s}",
+                .{ @tagName(token.tag), source.normalized[token.start..token.end] },
             );
         }
         try list.append(allocator, token);
@@ -586,10 +761,12 @@ const Tag = enum {
     exclam,
     forwardslash_equals,
     forwardslash,
+    float,
     greater_equals,
     greater_greater_equals,
     greater_greater,
     greater,
+    integer,
     l_brace,
     l_bracket,
     less_equals,
@@ -675,6 +852,15 @@ const State = enum {
     word,
     string_literal,
     string_literal_backslash,
+    zero,
+    hex,
+    number,
+    hex_float,
+    number_float,
+    hex_float_p,
+    number_float_e,
+    universal_identifier,
+    universal_identifier_backslash,
 };
 
 const std = @import("std");
