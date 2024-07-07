@@ -18,4 +18,7 @@ const p = 0xf0.0P+6;
 const q = 0xf0.0p6;
 const r = 0xf0.0P6;
 
-const what = 0xf0.0e+6;
+const multiple_lines =
+	\\the quick brown fox jumps over the lazy dog
+	\\le renard brun vite saute sur le chien paresseux
+;

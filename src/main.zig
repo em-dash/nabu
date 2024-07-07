@@ -52,7 +52,7 @@ fn compileAndRun(allocator: std.mem.Allocator, options: helpers.CompileOptions) 
     try tokenization.initPropsData(allocator);
     defer tokenization.deinitPropsData();
     const tokens = try tokenization.tokenizeSource(allocator, source, options.debug_tokens);
-    _ = tokens;
+    defer allocator.free(tokens);
 
     if (options.target_stage == .tokenization) return;
     // Parsing

@@ -10,6 +10,8 @@ pub fn deinitPropsData() void {
     props_data.deinit();
 }
 
+// This should tokenize anything as long as it's a set of valid tokens; ungrammatical code
+// should fail at the parsing stage, not here.
 pub fn tokenizeSource(
     allocator: std.mem.Allocator,
     source: *Source,
@@ -44,6 +46,10 @@ pub fn tokenizeSource(
                     } else if (cp.code == '.') {
                         _ = iterator.next();
                         state = .dot;
+                        continue :token_loop;
+                    } else if (cp.code == '\\') {
+                        _ = iterator.next();
+                        state = .backslash;
                         continue :token_loop;
                     } else if (cp.code == '=') {
                         _ = iterator.next();
@@ -150,7 +156,7 @@ pub fn tokenizeSource(
                         token.end = iterator.i;
                         break :token_loop;
                     } else {
-                        try errors.print(.{ .invalid_character = iterator.i }, source);
+                        try errors.print(.{ .invalid_character = cp.offset }, source);
                         return error.InvalidCharacter;
                     }
                 },
@@ -699,11 +705,54 @@ pub fn tokenizeSource(
                     try errors.print(.{ .invalid_float_literal = token.start }, source);
                     return error.InvalidFloatLiteral;
                 },
+                .backslash => {
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '\\') {
+                            _ = iterator.next();
+                            state = .multiline_string_literal;
+                            continue :token_loop;
+                        }
+                        try errors.print(.{ .invalid_character = cp.offset }, source);
+                        return error.UnexpectedCharacter;
+                    }
+                    try errors.print(.unexpected_eof, source);
+                    return error.UnexpectedEof;
+                },
+                .multiline_string_literal => {
+                    if (iterator.peek()) |cp| {
+                        if (cp.code == '\n') {
+                            _ = iterator.next();
+                            state = .multiline_string_literal_newline;
+                            continue :token_loop;
+                        } else {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .integer;
+                    break :token_loop;
+                },
+                .multiline_string_literal_newline => {
+                    if (iterator.peek()) |cp| {
+                        if (props_data.isWhitespace(cp.code)) {
+                            _ = iterator.next();
+                            continue :token_loop;
+                        } else if (cp.code == '\\') {
+                            _ = iterator.next();
+                            state = .backslash;
+                            continue :token_loop;
+                        }
+                    }
+                    token.end = iterator.i;
+                    token.tag = .integer;
+                    break :token_loop;
+                },
             }
         }
         if (debug_info) {
             std.log.debug(
-                "found token: {s:.>20} {s}",
+                "found token: {s:.>26} {s}",
                 .{ @tagName(token.tag), source.normalized[token.start..token.end] },
             );
         }
@@ -852,6 +901,9 @@ const State = enum {
     word,
     string_literal,
     string_literal_backslash,
+    backslash,
+    multiline_string_literal,
+    multiline_string_literal_newline,
     zero,
     hex,
     number,

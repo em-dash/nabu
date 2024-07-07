@@ -39,6 +39,10 @@ pub fn print(err: Error, source: *Source) !void {
             const slice = source.getLineSlice(location.line);
             try stderr.print("{s}", .{slice});
         },
+        .unexpected_eof => {
+            // TODO show index
+            try stderr.print("unexpected end of file\n", .{});
+        },
     }
 }
 
@@ -47,6 +51,7 @@ const Error = union(Code) {
     invalid_character: u32,
     /// Index of the first character of the float literal
     invalid_float_literal: u32,
+    unexpected_eof,
     /// Index of opening quote of the string literal
     mismatched_quotes: u32,
     /// Index of opening backtick of the universal identifier
@@ -58,6 +63,7 @@ const Code = enum(u32) {
     // 1xx tokenization errors
     invalid_character = 100,
     invalid_float_literal = 101,
+    unexpected_eof = 102,
     mismatched_quotes = 110,
     mismatched_backticks = 111,
 };
