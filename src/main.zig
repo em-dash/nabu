@@ -3,6 +3,7 @@ const CliArgs = struct {
     tokenize_only: bool = false,
     debug_tokens: bool = false,
     parse_only: bool = false,
+    debug_ast: bool = false,
 };
 
 fn processArgs(allocator: std.mem.Allocator) !CliArgs {
@@ -20,7 +21,9 @@ fn processArgs(allocator: std.mem.Allocator) !CliArgs {
                 else if (std.mem.eql(u8, arg[2..], "parse-only"))
                     result.parse_only = true
                 else if (std.mem.eql(u8, arg[2..], "debug-tokens"))
-                    result.debug_tokens = true;
+                    result.debug_tokens = true
+                else if (std.mem.eql(u8, arg[2..], "debug-ast"))
+                    result.debug_ast = true;
             } else { // Short arguments
 
             }
@@ -56,7 +59,8 @@ fn compileAndRun(allocator: std.mem.Allocator, options: helpers.CompileOptions) 
 
     if (options.target_stage == .tokenization) return;
     // Parsing
-    if (true) std.debug.panic("not implemented", .{});
+    const ast = try parsing.parse();
+    defer ast.deinit();
     if (options.target_stage == .ast) return;
     // AST check
     if (true) std.debug.panic("not implemented", .{});
@@ -113,3 +117,4 @@ const builtin = @import("builtin");
 const helpers = @import("helpers.zig");
 const Source = @import("Source.zig");
 const tokenization = @import("tokenization.zig");
+const parsing = @import("parsing.zig");
