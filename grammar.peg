@@ -22,9 +22,9 @@ Literal <- STRINGLITERAL
     / INTEGER
     / FLOAT
 
-InterfaceDecl <- KEYWORD_interface IDENTIFIER LBRACE Decl* (InterfaceMember COMMA)* 
-    InterfaceMember? Decl* RBRACE
-InterfaceMember <- ScopedIdentifier / FunctionSignature
+InterfaceDecl <- KEYWORD_interface IDENTIFIER LBRACE (InterfaceMember COMMA)* 
+    InterfaceMember? RBRACE
+InterfaceMember <- FunctionDecl / FunctionSignature
 
 ErrorDecl <- KEYWORD_error IDENTIFIER LBRACE (IDENTIFIER COMMA)* IDENTIFIER? RBRACE
 
