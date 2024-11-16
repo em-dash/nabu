@@ -775,7 +775,7 @@ const keywords = k: {
     break :k std.StaticStringMap(Tag).initComptime(list);
 };
 
-const Token = struct {
+pub const Token = struct {
     // Such that `Source.normalized[start..end]` gets a slice of this token.
     start: u32,
     end: u32,

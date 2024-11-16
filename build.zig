@@ -43,7 +43,7 @@ pub fn build(b: *std.Build) void {
     );
     clean_step.dependOn(&clean.step);
 
-    // const llvm = !(b.host.result.cpu.arch == .x86_64);
+    // const use_llvm = !(b.host.result.cpu.arch == .x86_64);
     const use_llvm = true;
 
     const exe = b.addExecutable(.{
