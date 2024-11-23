@@ -13,7 +13,7 @@ EnumMember <- IDENTIFIER (EQUALS INTEGER)?
 
 StructDecl <- KEYWORD_struct IDENTIFIER GenericIdentifier? (KEYWORD_implements 
     ScopedIdentifier)* LBRACE Decl* (StructMember COMMA)* StructMember? Decl* RBRACE
-StructMember <- IDENTIFIER COLON Type (EQUALS Literal)?
+StructMember <- IDENTIFIER COLON ErrorUnionType (EQUALS Literal)?
 
 Literal <- STRINGLITERAL
     / ListLiteral
@@ -33,12 +33,14 @@ Decl <- VarDecl / FunctionDecl
 GenericIdentifier <- LESS IDENTIFIER GREATER
 
 FunctionDecl <- KEYWORD_fn IDENTIFIER GenericIdentifier? LPAREN (DeclParam COMMA)* DeclParam? 
-    RPAREN ((ScopedIdentifier / ErrorDecl)? OCTOTHORPE)? Type Block
+    RPAREN ErrorUnionType Block
 
 FunctionSignature <- KEYWORD_fn IDENTIFIER GenericIdentifier? LPAREN (Type COMMA)* Type? RPAREN
     ((ScopedIdentifier / ErrorDecl)? OCTOTHORPE)? Type
 
 DeclParam <- IDENTIFIER COLON Type
+
+ErrorUnionType <- (ScopedIdentifier / LBRACE (IDENTIFIER COMMA)* IDENTIFIER? RBRACE)? OCTOTHORPE Type
 
 # identifier:  Something.Whatever
 # list:        [Int]
@@ -52,8 +54,7 @@ Type <- ScopedIdentifier
 
 ScopedIdentifier <- IDENTIFIER (DOT IDENTIFIER)*
 
-VarDecl <- (KEYWORD_const / KEYWORD_var) IDENTIFIER (COLON ((ScopedIdentifier / ErrorDecl) 
-    OCTOTHORPE)? Type)? EQUALS Expression SEMICOLON
+VarDecl <- (KEYWORD_const / KEYWORD_var) IDENTIFIER (COLON ErrorUnionType)? EQUALS Expression SEMICOLON
 
 
 # precedence levels (we go through these in reverse order)

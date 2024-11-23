@@ -1,319 +1,410 @@
-const Node = union(enum(u8)) {
-    const null_index = std.math.maxInt(u32);
+const null_index = @as(u32, std.math.maxInt(u32));
 
+// With notes on the `parse_payload` in `Ast`
+const GrammarError = error{
+    UnexpectedEof,
+    UnexpectedToken,
+};
+const ParseError = GrammarError || std.mem.Allocator.Error;
+
+const Node = union(enum(u8)) {
     /// A start and end, restricted to unsigned 32-bit integers.  Note that this is not a slice
     /// hence the name differentiates it.
-    slicer: struct {
+    span: struct {
         start: u32,
         end: u32,
     },
     module_decl: struct {
-        /// `slicer`
-        name: u32,
-        /// `module_functions`
-        functions: u32,
-    },
-    module_functions: struct {
-        functions: u32,
-        enums: u32,
-    },
-    module_enums: struct {
-        enums: u32,
-        interfaces: u32,
-    },
-    module_interfaces: struct {
-        interfaces: u32,
-        structs: u32,
-    },
-    module_structs: struct {
-        structs: u32,
-        vars: u32,
-    },
-    module_vars: struct {
-        vars: u32,
-        modules_errors: u32,
-    },
-    module_modules_errors: struct {
-        modules: u32,
-        errors: u32,
-    },
-    function_decl: struct {
-        signature: u32,
-        /// `block`
-        body: u32,
-    },
-    function_signature: struct {
-        identifiers: u32,
-        /// `slicer` of `decl_param`
-        arguments: u32,
-    },
-    function_identifiers: struct {
-        /// `slicer` over source file
-        name: u32,
-        /// `slicer` over source file
-        generic: u32,
-    },
-    decl_param: struct {
-        /// `slicer` over source file
-        name: u32,
-        /// `type`
-        type: u32,
-    },
-    /// If `qualifier == .none`, `underlying` indexes an `identifier`, otherwise it indexes
-    /// another `type`
-    type: struct {
-        underlying: u32,
-        qualifier: TypeQualifier,
-    },
-    enum_decl: struct {
-        /// `slicer` over source file
-        name: u32,
-        /// `slicer` of `slicer`s over source file
-        enum_members: u32,
-    },
-    interface_decl: struct {
-        /// `slicer` of `function`
-        functions: u32,
-        /// `slicer` of `signature`
-        signatures: u32,
-    },
-    struct_decl: struct {
-        name: u32,
-        struct_body: u32,
-    },
-    struct_body: struct {
-        /// `slicer` of `var_decl`
-        struct_fields: u32,
-        /// `slicer` of `function_decl`
-        struct_functions: u32,
-    },
-    var_decl: struct {
-        name: u32,
-        type: u32,
-    },
-    error_decl: struct {
-        name: u32,
-        /// `slicer` over `slicer`s over source file
+        /// Token index
+        identifier: u32,
         members: u32,
     },
-};
+    module_member: struct {
+        member: u32,
+        next: u32,
+    },
+    fn_decl: struct {
+        fn_id_params: u32,
+        fn_rtype_block: u32,
+    },
+    fn_id_params: struct {
+        /// Token index
+        token: u32,
+        params: u32,
+    },
+    fn_param: struct {
+        // `decl_param`
+        param: u32,
+        next: u32,
+    },
+    decl_param: struct {
+        /// Token index
+        identifier: u32,
+        type: u32,
+    },
+    fn_rtype_block: struct {
+        error_union: u32,
+        block: u32,
+    },
+    block: struct {},
+    // type: struct {
+    //     type: u32,
+    //     qualifier: enum(u32) { none, list, map, reference },
+    // },
+    type: union(enum(u32)) {
+        none: u32,
+        list: u32,
+        map: u32,
+        reference: u32,
+    },
+    scoped_identifier: struct {
+        identifier: u32,
+        next: u32,
+    },
+    error_union: struct {
+        @"error": u32,
+        type: u32,
+    },
+    @"error": union(enum(u32)) {
+        none,
+        name: u32,
+        anon: u32,
+    },
+    // @"error": struct {
+    //     // name: u32,
+    //     // members: u32,
 
-const TypeQualifier = enum {
-    none,
-    list,
-    map,
-    reference,
+    // },
+    error_member: struct {
+        identifier: u32,
+        next: u32,
+    },
+
+    // enum_decl: struct {
+    //     /// Token index
+    //     identifier: u32,
+    //     /// `span` of `identifier`
+    //     enum_members: u32,
+    // },
+    // interface_decl: struct {},
+    // struct_decl: struct {
+    //     /// Token index
+    //     identifier: u32,
+    //     struct_body: u32,
+    // },
+    // struct_body: struct {},
+    // var_decl: struct {},
+    // error_decl: struct {},
 };
 
 pub const Ast = struct {
     nodes: std.ArrayListUnmanaged(Node),
+    allocator: std.mem.Allocator,
+    i: u32,
+    // Externally owned
+    tokens: []const tokenization.Token,
+    error_payload: ?*const tokenization.Token = null,
 
-    fn addNode(self: *Ast, allocator: std.mem.Allocator) !u32 {
-        try self.nodes.append(allocator, undefined);
+    inline fn peek(self: *Ast) u32 {
+        if (self.i < self.tokens.len) return self.i else return null_index;
+    }
+
+    inline fn pop(self: *Ast) u32 {
+        const result = self.i;
+        self.i += 1;
+        if (result < self.tokens.len) return result else return null_index;
+    }
+
+    fn addNode(self: *Ast) !u32 {
+        try self.nodes.append(self.allocator, undefined);
         return @as(u32, @truncate(self.nodes.items.len)) - 1;
     }
 
-    fn create(allocator: std.mem.Allocator) !*Ast {
+    fn create(allocator: std.mem.Allocator, tokens: []const tokenization.Token) !*Ast {
         const result = try allocator.create(Ast);
-        result.nodes = .{};
+        result.* = .{
+            .nodes = .{},
+            .allocator = allocator,
+            .i = 0,
+            .tokens = tokens,
+        };
 
         return result;
     }
 
-    pub fn destroy(self: *Ast, allocator: std.mem.Allocator) void {
-        self.nodes.deinit(allocator);
+    pub fn destroy(self: *Ast) void {
+        self.nodes.deinit(self.allocator);
     }
 };
 
-fn parseFn(
-    allocator: std.mem.Allocator,
-    tokens: []const tokenization.Token,
-    i: *u32,
-    ast: *Ast,
-) !void {
-    _ = i; // autofix
-    _ = ast; // autofix
-    _ = allocator; // autofix
-    _ = tokens; // autofix
+fn expectToken(ast: *Ast, expect: tokenization.Tag) ParseError!void {
+    const token = ast.pop();
+    if (ast.tokens[token].tag != expect) {
+        ast.error_payload = &ast.tokens[token];
+        return error.UnexpectedToken;
+    }
 }
 
-fn parseEnum(
-    allocator: std.mem.Allocator,
-    tokens: []const tokenization.Token,
-    i: *u32,
-    ast: *Ast,
-) !void {
-    _ = i; // autofix
-    _ = ast; // autofix
-    _ = allocator; // autofix
-    _ = tokens; // autofix
+fn parseScopedIdentifier(ast: *Ast) ParseError!u32 {
+    const root = try ast.addNode();
+    ast.nodes.items[root] = .{ .scoped_identifier = .{
+        .identifier = ast.pop(),
+        .next = null_index,
+    } };
+
+    var current = root;
+
+    while (ast.tokens[ast.peek()].tag == .dot) {
+        _ = ast.pop();
+        ast.nodes.items[current].scoped_identifier.next = try ast.addNode();
+        current = ast.nodes.items[current].scoped_identifier.next;
+        const token = ast.pop();
+        if (ast.tokens[token].tag != .identifier) {
+            ast.error_payload = &ast.tokens[token];
+            return error.UnexpectedToken;
+        }
+        ast.nodes.items[current].scoped_identifier.identifier = token;
+        ast.nodes.items[current].scoped_identifier.next = null_index;
+    }
+
+    return root;
 }
 
-fn parseInterface(
-    allocator: std.mem.Allocator,
-    tokens: []const tokenization.Token,
-    i: *u32,
-    ast: *Ast,
-) !void {
-    _ = i; // autofix
-    _ = ast; // autofix
-    _ = allocator; // autofix
-    _ = tokens; // autofix
+fn parseType(ast: *Ast) ParseError!u32 {
+    const node = try ast.addNode();
+
+    const first_token = ast.pop();
+    switch (ast.tokens[first_token].tag) {
+        .l_bracket => {
+            ast.nodes.items[node] = .{ .type = .{
+                .list = try parseType(ast),
+            } };
+
+            try expectToken(ast, .l_bracket);
+        },
+        .l_brace => {
+            std.debug.panic("not implemented", .{});
+        },
+        .asterisk => {
+            ast.nodes.items[node] = .{ .type = .{
+                .reference = try parseType(ast),
+            } };
+        },
+        .identifier => {
+            ast.nodes.items[node] = .{ .type = .{
+                .none = try parseType(ast),
+            } };
+        },
+        else => {
+            ast.error_payload = &ast.tokens[first_token];
+            return error.UnexpectedToken;
+        },
+    }
+
+    return node;
 }
 
-fn parseStruct(
-    allocator: std.mem.Allocator,
-    tokens: []const tokenization.Token,
-    i: *u32,
-    ast: *Ast,
-) !void {
-    _ = i; // autofix
-    _ = ast; // autofix
-    _ = allocator; // autofix
-    _ = tokens; // autofix
+fn parseFnArgs(ast: *Ast) ParseError!u32 {
+    var root_node = null_index;
+    var current_node = null_index;
+
+    while (ast.tokens[ast.peek()].tag != .r_paren) {
+        const node = try ast.addNode();
+        ast.nodes.items[node] = .{ .decl_param = .{
+            .identifier = ast.pop(),
+            .type = undefined,
+        } };
+        if (ast.tokens[ast.nodes.items[node].decl_param.identifier].tag != .identifier) {
+            ast.error_payload = &ast.tokens[ast.nodes.items[node].decl_param.identifier];
+            return error.UnexpectedToken;
+        }
+
+        try expectToken(ast, .colon);
+
+        ast.nodes.items[node].decl_param.type = try parseType(ast);
+
+        if (current_node == null_index) {
+            root_node = try ast.addNode();
+            current_node = root_node;
+            ast.nodes.items[current_node] = .{ .fn_param = .{
+                .param = node,
+                .next = null_index,
+            } };
+        } else {
+            ast.nodes.items[current_node].fn_param.next = try ast.addNode();
+            current_node = ast.nodes.items[current_node].fn_param.next;
+            ast.nodes.items[current_node] = .{ .fn_param = .{
+                .param = node,
+                .next = null_index,
+            } };
+        }
+    }
+
+    // Consume ending `r_paren`
+    _ = ast.pop();
+    return root_node;
 }
 
-fn parseVar(
-    allocator: std.mem.Allocator,
-    tokens: []const tokenization.Token,
-    i: *u32,
-    ast: *Ast,
-) !void {
-    _ = i; // autofix
-    _ = ast; // autofix
-    _ = allocator; // autofix
-    _ = tokens; // autofix
+fn parseErrorUnion(ast: *Ast) ParseError!u32 {
+    // error_union: struct {
+    //     @"error": u32,
+    //     type: u32,
+    // },
+    // @"error": union(enum(u32)) {
+    //     none,
+    //     name: u32,
+    //     anon: u32,
+    // },
+    // error_member: struct {
+    //     identifier: u32,
+    //     next: u32,
+    // },
+
+    const error_union = try ast.addNode();
+
+    switch (ast.tokens[ast.peek()].tag) {
+        .asterisk, .l_bracket, .l_brace => {
+            ast.nodes.items[error_union] = .{ .error_union = .{
+                .@"error" = try parseType(ast),
+                .type = null_index,
+            } };
+        },
+        .octothorpe => {
+            _ = ast.pop();
+            ast.nodes.items[error_union] = .{ .error_union = .{
+                .@"error" = null_index,
+                .type = try parseType(ast),
+            } };
+        },
+        .identifier => {
+            const first = try parseScopedIdentifier(ast);
+            _ = first; // autofix
+            if (ast.tokens[ast.peek()].tag == .octothorpe) {
+                _ = ast.pop();
+                const second = try parseScopedIdentifier(ast);
+                _ = second; // autofix
+            }
+        },
+        else => {
+            ast.error_payload = &ast.tokens[ast.peek()];
+            return error.UnexpectedToken;
+        },
+    }
+
+    return error_union;
 }
 
-fn parseModule(
-    allocator: std.mem.Allocator,
-    tokens: []const tokenization.Token,
-    i: *u32,
-    ast: *Ast,
-) !void {
-    _ = allocator; // autofix
-    _ = tokens; // autofix
-    _ = i; // autofix
-    _ = ast; // autofix
-    // while (true) {
-    //     switch (tokens[i.*].tag) {
-    //         .keyword_fn => try parseFn(allocator, tokens, i, ast),
-    //         .keyword_enum => try parseEnum(allocator, tokens, i, ast),
-    //         .keyword_interface => try parseInterface(allocator, tokens, i, ast),
-    //         .keyword_struct => try parseStruct(allocator, tokens, i, ast),
-    //         .keyword_module => try parseModule(allocator, tokens, i, ast),
-    //         .keyword_error => try parseError(allocator, tokens, i, ast),
-    //         .identifier => try parseVar(allocator, tokens, i, ast),
-    //         else => return error.ExpectedDecl,
-    //     }
-    // }
-}
-
-fn parseError(
-    allocator: std.mem.Allocator,
-    tokens: []const tokenization.Token,
-    i: *u32,
-    ast: *Ast,
-) !void {
-    _ = i; // autofix
-    _ = ast; // autofix
-    _ = allocator; // autofix
-    _ = tokens; // autofix
-}
-
-/// Helper function to dedupe code between `parse()` and `parseModule()`.  The name `slicer`, as
-/// well as the content-holding `functions`, `enums`, etc are left undefined.
-fn constructModuleTree(allocator: std.mem.Allocator, ast: *Ast) !u32 {
-    const decl = try ast.addNode(allocator);
-    const functions = try ast.addNode(allocator);
-    ast.nodes.items[decl] = .{ .module_decl = .{
-        .slicer = undefined,
-        .functions = functions,
+fn parseFn(ast: *Ast) ParseError!u32 {
+    // Construct things
+    const root = try ast.addNode();
+    const fn_id_params = try ast.addNode();
+    const fn_rtype_block = try ast.addNode();
+    ast.nodes.items[root] = .{ .fn_decl = .{
+        .fn_id_params = fn_id_params,
+        .fn_rtype_block = fn_rtype_block,
     } };
-    const enums = try ast.addNode(allocator);
-    ast.nodes.items[functions] = .{ .module_functions = .{
-        .functions = undefined,
-        .enums = enums,
+    ast.nodes.items[fn_id_params] = .{ .fn_id_params = .{
+        .token = undefined,
+        .params = null_index,
     } };
-    const interfaces = try ast.addNode(allocator);
-    ast.nodes.items[enums] = .{ .module_enums = .{
-        .enums = undefined,
-        .interfaces = interfaces,
-    } };
-    const structs = try ast.addNode(allocator);
-    ast.nodes.items[interfaces] = .{ .module_interfaces = .{
-        .interfaces = undefined,
-        .structs = structs,
-    } };
-    const vars = try ast.addNode(allocator);
-    ast.nodes.items[structs] = .{ .module_structs = .{
-        .structs = undefined,
-        .vars = vars,
-    } };
-    const modules_errors = try ast.addNode(allocator);
-    ast.nodes.items[vars] = .{ .module_vars = .{
-        .vars = undefined,
-        .modules_errors = modules_errors,
-    } };
-    ast.nodes.items[modules_errors] = .{ .module_modules_errors = .{
-        .modules = undefined,
-        .errors = undefined,
+    ast.nodes.items[fn_rtype_block] = .{ .fn_rtype_block = .{
+        .error_union = undefined,
+        .block = undefined,
     } };
 
-    return decl;
+    const name = ast.pop();
+    ast.nodes.items[fn_id_params].fn_id_params.token = name;
+    if (ast.tokens[name].tag != .identifier) {
+        ast.error_payload = &ast.tokens[name];
+        return error.UnexpectedToken;
+    }
+
+    try expectToken(ast, .l_paren);
+    ast.nodes.items[fn_id_params].fn_id_params.params = try parseFnArgs(ast);
+
+    ast.nodes.items[fn_rtype_block].fn_rtype_block.error_union = try parseErrorUnion(ast);
+
+    // fn_decl: struct {
+    //     fn_id_params: u32,
+    //     fn_rtype_block: u32,
+    // },
+    // fn_id_params: struct {
+    //     /// Token index
+    //     token: u32,
+    //     params: u32,
+    // },
+    // fn_param: struct {
+    //     // `decl_param`
+    //     param: u32,
+    //     next: u32,
+    // },
+    // decl_param: struct {
+    //     /// Token index
+    //     identifier: u32,
+    //     type: u32,
+    // },
+    // fn_rtype_block: struct {
+    //     type: u32,
+    //     block: u32,
+    // },
+    // block: struct {},
+    // /// If `qualifier == .none`, `underlying` indexes an `identifier`, otherwise it indexes
+    // /// another `type`
+    // type: struct {
+    //     // `scoped_identifier`
+    //     underlying: u32,
+    //     qualifier: enum(u32) { none, list, map, reference },
+    // },
+
+    return 0xAAAAAAAA;
 }
 
 // ModuleMembers <- (FunctionDecl / EnumDecl / InterfaceDecl / StructDecl / VarDecl
 //     / ModuleDecl / ErrorDecl)*
-//
-// The file is treated as a module.  We just make its name length zero.
-pub fn parse(allocator: std.mem.Allocator, tokens: []const tokenization.Token) !*Ast {
-    var i: u32 = 0;
-    const ast = try allocator.create(Ast);
-
-    const root = try constructModuleTree(allocator, ast);
-    _ = root; // autofix
-
-    // functions
-    const functions = std.ArrayListUnmanaged(u32);
-    _ = functions; // autofix
-    // enums
-    const enums = std.ArrayListUnmanaged(u32);
-    _ = enums; // autofix
-    // interfaces
-    const interfaces = std.ArrayListUnmanaged(u32);
-    _ = interfaces; // autofix
-    // structs
-    const structs = std.ArrayListUnmanaged(u32);
-    _ = structs; // autofix
-    // vars
-    const vars = std.ArrayListUnmanaged(u32);
-    _ = vars; // autofix
-    // modules
-    const modules = std.ArrayListUnmanaged(u32);
-    _ = modules; // autofix
-    // errors
-    const errors = std.ArrayListUnmanaged(u32);
-    _ = errors; // autofix
-
-    while (true) {
-        switch (tokens[i].tag) {}
+fn parseModuleMembers(
+    ast: *Ast,
+    mode: enum { module, file },
+) ParseError!u32 {
+    // Checking for an empty container makes the rest easier.
+    if (mode == .module and ast.tokens[ast.peek()].tag == .r_brace) {
+        _ = ast.pop();
+        return null_index;
     }
 
-    // while (true) {
-    //     switch (tokens[i].tag) {
-    //         .keyword_fn => try parseFn(allocator, tokens, &i, ast),
-    //         .keyword_enum => try parseEnum(allocator, tokens, &i, ast),
-    //         .keyword_interface => try parseInterface(allocator, tokens, &i, ast),
-    //         .keyword_struct => try parseStruct(allocator, tokens, &i, ast),
-    //         .keyword_module => try parseModule(allocator, tokens, &i, ast),
-    //         .keyword_error => try parseError(allocator, tokens, &i, ast),
-    //         .identifier => try parseVar(allocator, tokens, &i, ast),
-    //         else => return error.ExpectedDecl,
-    //     }
-    // }
+    if (mode == .file and ast.peek() == null_index) {
+        return null_index;
+    }
 
-    return parseModule(allocator, tokens, &i, ast);
+    // module_member: struct {
+    //     member: u32,
+    //     next: u32,
+    // },
+
+    var root_index = null_index;
+
+    while (true) switch (ast.tokens[ast.pop()].tag) {
+        .r_brace => {
+            return root_index;
+        },
+        .keyword_fn => {
+            const function = try parseFn(ast);
+            root_index = try ast.addNode();
+            ast.nodes.items[root_index] = .{ .module_member = .{
+                .member = function,
+                .next = null_index,
+            } };
+        },
+        else => std.debug.panic("bad input and/or thing not implemented", .{}),
+    };
+}
+
+pub fn parse(allocator: std.mem.Allocator, tokens: []const tokenization.Token) ParseError!*Ast {
+    const ast = try Ast.create(allocator, tokens);
+
+    const idk = try parseModuleMembers(ast, .file);
+    _ = idk; // autofix
+
+    return ast;
 }
 
 const std = @import("std");

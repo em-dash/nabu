@@ -782,7 +782,7 @@ pub const Token = struct {
     tag: Tag,
 };
 
-const Tag = enum {
+pub const Tag = enum {
     ampersand_equals,
     ampersand,
     asterisk_asterisk,

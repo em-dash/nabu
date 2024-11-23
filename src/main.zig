@@ -60,7 +60,7 @@ fn compileAndRun(allocator: std.mem.Allocator, options: helpers.CompileOptions) 
     if (options.target_stage == .tokenization) return;
     // Parsing
     const ast = try parsing.parse(allocator, tokens);
-    defer ast.destroy(allocator);
+    defer ast.destroy();
     if (options.target_stage == .ast) return;
     // AST check
     if (true) std.debug.panic("not implemented", .{});
