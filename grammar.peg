@@ -40,7 +40,8 @@ FunctionSignature <- KEYWORD_fn IDENTIFIER GenericIdentifier? LPAREN (Type COMMA
 
 DeclParam <- IDENTIFIER COLON Type
 
-ErrorUnionType <- (ScopedIdentifier / LBRACE (IDENTIFIER COMMA)* IDENTIFIER? RBRACE)? OCTOTHORPE Type
+# ErrorUnionType <- (ScopedIdentifier / LBRACE (IDENTIFIER COMMA)* IDENTIFIER? RBRACE)? OCTOTHORPE Type
+ErrorUnionType <- ScopedIdentifier? OCTOTHORPE Type
 
 # identifier:  Something.Whatever
 # list:        [Int]
@@ -68,7 +69,7 @@ VarDecl <- (KEYWORD_const / KEYWORD_var) IDENTIFIER (COLON ErrorUnionType)? EQUA
 # 8:  and
 # 9:  or
 
-Expression <- OrExpression
+Expression <- OrExpression / IfExpression / SwitchExpression / WhileExpression / ForExpression 
 
 OrExpression <- AndExpression (KEYWORD_or AndExpression)*
 
@@ -99,7 +100,7 @@ SuffixOp <- DOTASTERISK / DOTQUESTIONMARK / (LBRACKET Expression RBRACKET) / (LB
     DOTDOT Expression RBRACKET)
 
 PrimaryExpression <- FunctionCall
-    / BlockLabel? Block
+    / BlockExpression
     / STRINGLITERAL
     / ListLiteral
     / MapLiteral
@@ -112,6 +113,8 @@ PrimaryExpression <- FunctionCall
     / BlockLabel? LoopExpression
     / SwitchExpression
     / KEYWORD_return Expression?
+
+BlockExpression <- BlockLabel? Block
 
 AssignExpression <- Expression (AssignOp Expression)?
 AssignOp <- EQUALS / PLUSEQUALS / MINUSEQUALS / ASTERISKEQUALS / FORWARDSLASHEQUALS / PERCENTEQUALS
@@ -164,10 +167,10 @@ SwitchCase
 
 SwitchItem <- Expression (DOTDOTDOT Expression)?
 
+# Expression <- OrExpression / IfExpression / SwitchExpression / WhileExpression / ForExpression 
+
 Statement <- IfExpression / SwitchExpression / WhileExpression / ForExpression / (KEYWORD_defer 
-    / KEYWORD_errdefer)? Expression SEMICOLON
-
-
+    / KEYWORD_errdefer)? Expression SEMICOLON / VarDecl
 
 BlockLabel <- IDENTIFIER COLON
 

@@ -7,7 +7,7 @@ const GrammarError = error{
 };
 const ParseError = GrammarError || std.mem.Allocator.Error;
 
-const Node = union(enum(u8)) {
+const Node = union(enum) {
     /// A start and end, restricted to unsigned 32-bit integers.  Note that this is not a slice
     /// hence the name differentiates it.
     span: struct {
@@ -81,7 +81,27 @@ const Node = union(enum(u8)) {
         identifier: u32,
         next: u32,
     },
-
+    // Statement <- IfExpression / SwitchExpression / WhileExpression / ForExpression / (KEYWORD_defer
+    //     / KEYWORD_errdefer)? Expression SEMICOLON
+    statement: union(enum(u32)) {
+        @"if": u32,
+        @"switch": u32,
+        @"while": u32,
+        @"for": u32,
+        assign: u32,
+    },
+    if_expression: struct {
+        head: u32,
+        @"else": u32, // `expression`
+    },
+    if_head: struct {
+        condition: u32, // `expression`
+        consequent: u32, // `expression`
+    },
+    // switch_expression: struct {},
+    // while_expression: struct {},
+    // for_expression: struct {},
+    // assign_expression: struct {},
     // enum_decl: struct {
     //     /// Token index
     //     identifier: u32,
@@ -119,9 +139,9 @@ pub const Ast = struct {
         if (result < self.tokens.len) return result else return null_index;
     }
 
-    fn addNode(self: *Ast, comptime tag: NodeTag) !u32 {
+    fn addNode(self: *Ast, value: Node) !u32 {
         try self.nodes.append(self.allocator, undefined);
-        self.nodes.items[self.nodes.items.len - 1] = @unionInit(Node, @tagName(tag), undefined);
+        self.nodes.items[self.nodes.items.len - 1] = value;
         return @as(u32, @truncate(self.nodes.items.len)) - 1;
     }
 
@@ -277,7 +297,7 @@ fn parseErrorUnion(ast: *Ast) ParseError!u32 {
         .octothorpe => {
             _ = ast.pop();
             const @"error" = try ast.addNode(.@"error");
-            ast.nodes.items[@"error"].@"error" = .{.inferred};
+            ast.nodes.items[@"error"].@"error" = .inferred;
             ast.nodes.items[error_union].error_union = .{
                 .@"error" = null_index,
                 .type = try parseType(ast),
@@ -310,8 +330,12 @@ fn parseErrorUnion(ast: *Ast) ParseError!u32 {
     return error_union;
 }
 
+// Statement <- IfExpression / SwitchExpression / WhileExpression / ForExpression / (KEYWORD_defer
+//     / KEYWORD_errdefer)? Expression SEMICOLON
 fn parseStatement(ast: *Ast) ParseError!u32 {
     _ = ast; // autofix
+
+    return 0xAAAAAAAA;
 }
 
 fn parseBlock(ast: *Ast) ParseError!u32 {
@@ -323,14 +347,19 @@ fn parseBlock(ast: *Ast) ParseError!u32 {
 
     const root = try ast.addNode(.block_member);
     var current = root;
-    _ = &current; // autofix
 
     while (ast.tokens[ast.peek()].tag != .r_brace) {
+        const statement = try parseStatement(ast);
+        const next = try ast.addNode(.block_member);
         ast.nodes.items[current].block_member = .{
-            .statement = try parseStatement(ast),
-            .next = ast.addNode(.block_member),
+            .statement = statement,
+            .next = next,
         };
+
+        current = ast.nodes.items[current].block_member.next;
     }
+
+    return root;
 }
 
 fn parseFn(ast: *Ast) ParseError!u32 {
