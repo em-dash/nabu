@@ -14,12 +14,8 @@
     // internet connectivity.
     .dependencies = .{
         .zg = .{
-            .url = "https://codeberg.org/dude_the_builder/zg/archive/v0.13.2.tar.gz",
-            .hash = "122055beff332830a391e9895c044d33b15ea21063779557024b46169fb1984c6e40",
-        },
-        .clap = .{
-            .url = "https://github.com/Hejsil/zig-clap/archive/c0193e9247335a6c1688b946325060289405de2a.tar.gz",
-            .hash = "12207ee987ce045596cb992cfb15b0d6d9456e50d4721c3061c69dabc2962053644d",
+            .url = "https://codeberg.org/atman/zg/archive/v0.13.4.tar.gz",
+            .hash = "1220fe42e39fd141c84fd7d5cf69945309bb47253033e68788f99bdfe5585fbc711a",
         },
     },
     .paths = .{

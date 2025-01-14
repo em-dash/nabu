@@ -139,9 +139,13 @@ pub const Ast = struct {
         if (result < self.tokens.len) return result else return null_index;
     }
 
-    fn addNode(self: *Ast, value: Node) !u32 {
+    const NodeEnum = @typeInfo(Node).Union.tag_type.?;
+
+    fn addNode(self: *Ast, kind: NodeEnum) !u32 {
         try self.nodes.append(self.allocator, undefined);
-        self.nodes.items[self.nodes.items.len - 1] = value;
+        self.nodes.items[self.nodes.items.len - 1] = switch (kind) {
+            inline else => |n| @unionInit(Node, @tagName(n), undefined),
+        };
         return @as(u32, @truncate(self.nodes.items.len)) - 1;
     }
 
